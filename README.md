@@ -1,4 +1,4 @@
-# CouriousPMO - Project Management Tool
+# CuriousPMO - Project Management Tool
 
 A full-featured, web-based project management platform for teams to manage projects, tasks, sprints, and milestones efficiently.
 
