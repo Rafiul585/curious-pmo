@@ -14,6 +14,33 @@ A full-featured, web-based project management platform for teams to manage proje
 - **Dashboard analytics** - Task statistics and progress tracking
 - **Role-based access control** - Workspace and project level permissions
 
+## Screenshots
+
+### Login
+![Login](screenshots/login.png)
+
+### Dashboard
+![Dashboard](screenshots/dashboard.png)
+
+### Workspaces & Projects
+| Workspaces | Projects |
+|------------|----------|
+| ![Workspaces](screenshots/workspace.png) | ![Projects](screenshots/projects.png) |
+
+### Project Details
+![Project Details](screenshots/project_details.png)
+
+### Tasks & Kanban
+| Tasks | Kanban Board |
+|-------|--------------|
+| ![Tasks](screenshots/tasks.png) | ![Kanban](screenshots/kanban_board.png) |
+
+### Gantt Chart
+![Gantt Chart](screenshots/gantt_chart.png)
+
+### Profile
+![Profile](screenshots/profile.png)
+
 ## Tech Stack
 
 ### Backend
