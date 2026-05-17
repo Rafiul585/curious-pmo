@@ -178,7 +178,7 @@ Client-side filter on already-fetched data.
 
 ---
 
-## [ ] A9 — Blocked Task Indicator
+## [x] A9 — Blocked Task Indicator
 
 **Backend:** `clickpm/pm/serializers/task_serializers.py`
 - Add `is_blocked = SerializerMethodField()` → True if any `blocked_by` dependency has an incomplete task.
