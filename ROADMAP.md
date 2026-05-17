@@ -191,7 +191,7 @@ Client-side filter on already-fetched data.
 
 ---
 
-## [ ] A10 — Bulk Task Status Update
+## [x] A10 — Bulk Task Status Update
 
 **Backend:** `POST /api/tasks/bulk_update/` → `{ "task_ids": [1,2,3], "status": "Done" }`
 
@@ -212,7 +212,7 @@ Client-side filter on already-fetched data.
 
 ---
 
-## [ ] B1 — Fix Mobile Sidebar (Currently Broken)
+## [x] B1 — Fix Mobile Sidebar (Currently Broken)
 
 **Problem:** Hamburger button in `MainLayout.tsx` has no `onClick` — tapping it does nothing.
 
@@ -229,7 +229,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B2 — Cmd+K Command Palette
+## [x] B2 — Cmd+K Command Palette
 
 **File to create:** `frontend/src/components/search/CommandPalette.tsx`
 - Opens on `Ctrl+K` / `Cmd+K` from anywhere
@@ -243,7 +243,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B3 — Quick Inline Task Creation
+## [x] B3 — Quick Inline Task Creation
 
 **Files to update:**
 1. `frontend/src/pages/ProjectDetailPage.tsx` — `+ Add task` row at bottom of each sprint's list. Clicking reveals inline text input, pre-fills project/sprint/milestone, saves on Enter.
@@ -253,7 +253,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B4 — Real-Time Notifications via Socket.io
+## [x] B4 — Real-Time Notifications via Socket.io
 
 **Note:** First check if Django has WebSocket/Socket.io support in `clickpm/config/settings.py`. If not, add `django-channels` before starting frontend work.
 
@@ -265,7 +265,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B5 — Drag-and-Drop Reordering Within Kanban Columns
+## [x] B5 — Drag-and-Drop Reordering Within Kanban Columns
 
 **Backend:**
 - `clickpm/pm/models/task_models.py` — add `position = models.PositiveIntegerField(default=0)`
@@ -289,7 +289,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B7 — Task Comments Wired to API
+## [x] B7 — Task Comments Wired to API
 
 **Audit first:** Read `frontend/src/components/TaskDetailModal.tsx` to confirm what's connected.
 
@@ -301,7 +301,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B8 — Saved Filters via URL Query Params
+## [x] B8 — Saved Filters via URL Query Params
 
 **Files to update:**
 - `frontend/src/pages/TasksPage.tsx` — read/write `status`, `priority`, `assignee` via `useSearchParams()`
@@ -312,7 +312,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B9 — Keyboard Shortcuts
+## [x] B9 — Keyboard Shortcuts
 
 **File to create:** `frontend/src/hooks/useKeyboardShortcuts.ts`
 ```
@@ -330,7 +330,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] B10 — Time Tracking UI
+## [x] B10 — Time Tracking UI
 
 **Depends on C6** (time tracking backend fields). Complete C6 first.
 

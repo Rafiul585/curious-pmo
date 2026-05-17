@@ -167,6 +167,30 @@ prod-shell: ## Open a shell inside the running production web container
 	cd $(BE) && docker compose -f docker-compose.prod.yml exec web bash
 
 
+# ── docker — frontend (production preview build) ──────────────────────────────
+
+.PHONY: docker-up-fe
+docker-up-fe: ## Build + start the frontend container  →  http://localhost:5173
+	cd $(FE) && docker compose up -d --build
+
+.PHONY: docker-down-fe
+docker-down-fe: ## Stop the frontend container
+	cd $(FE) && docker compose down
+
+.PHONY: docker-build-fe
+docker-build-fe: ## Rebuild the frontend container image
+	cd $(FE) && docker compose build
+
+.PHONY: docker-logs-fe
+docker-logs-fe: ## Follow frontend container logs
+	cd $(FE) && docker compose logs -f
+
+.PHONY: docker-full
+docker-full: ## Start all containers: backend (dev) + frontend (preview)
+	$(MAKE) docker-up
+	$(MAKE) docker-up-fe
+
+
 # ── git workflow ──────────────────────────────────────────────────────────────
 # Mirrors the branch strategy in CLAUDE.md:
 #   main  ←  dev  ←  feature/<NAME>

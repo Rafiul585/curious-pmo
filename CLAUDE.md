@@ -24,6 +24,66 @@ See **`ROADMAP.md`** (this folder) for the full implementation plan. Five tracks
 
 Always check `ROADMAP.md` before starting any feature work. Find the first unchecked `[ ]` step and implement it.
 
+## Memory Files
+
+Project memory lives in **`.claude/memory/`** — visible in the IDE, version-controlled with the project.
+
+| File | Purpose |
+|------|---------|
+| `.claude/memory/MEMORY.md` | Index — read this first every session |
+| `.claude/memory/project_overview.md` | Stack, what exists, what's missing |
+| `.claude/memory/project_roadmap.md` | Roadmap summary and track descriptions |
+| `.claude/memory/feedback_git_workflow.md` | Git behaviour rules |
+
+**Rules for Claude:**
+- Always read `.claude/memory/MEMORY.md` at the start of every session
+- When saving a memory, write to `.claude/memory/` — never to the system `~/.claude` location
+- When adding a new memory file: create the `.md` in `.claude/memory/` and add a one-line entry to `.claude/memory/MEMORY.md`
+- When updating a memory: edit the relevant file in `.claude/memory/` directly
+- Only save memories when the user says "remember this" or explicitly requests it
+
+---
+
+## Git Workflow
+
+**Branch structure:**
+```
+main          ← stable, production-ready (never commit directly)
+  └── dev     ← integration branch (base for all feature work)
+        └── feature/A1-health-status-model
+        └── feature/B1-fix-mobile-sidebar
+        └── feature/C1-subtasks
+```
+
+**Every roadmap step follows this exact sequence:**
+
+```bash
+# 1. Start from dev
+git checkout dev
+
+# 2. Create a feature branch named after the step
+git checkout -b feature/B1-fix-mobile-sidebar
+
+# 3. Implement the step
+
+# 4. Commit with a clear message
+git add <specific files>
+git commit -m "feat: <short description>"
+
+# 5. Merge back into dev and delete the branch
+git checkout dev
+git merge feature/B1-fix-mobile-sidebar
+git branch -d feature/B1-fix-mobile-sidebar
+
+# 6. Mark the step [x] in ROADMAP.md
+```
+
+**Rules:**
+- Never commit directly to `main` or `dev`
+- One feature branch per roadmap step
+- Always merge into `dev` when a step is confirmed working
+- Mark the step `[x]` in `ROADMAP.md` after merging
+
 ---
 
 ## Backend (clickpm/)
