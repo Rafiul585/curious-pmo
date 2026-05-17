@@ -159,7 +159,7 @@ Client-side filter on already-fetched data.
 
 ---
 
-## [ ] A8 — Sprint Burndown Chart
+## [x] A8 — Sprint Burndown Chart
 
 **Backend — new endpoint:** `GET /api/sprints/{id}/burndown/`
 ```json
