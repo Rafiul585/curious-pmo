@@ -300,6 +300,59 @@ CuriousPMO Team
         return notifications
 
     @staticmethod
+    def create_health_alert(entity, old_status, new_status):
+        """
+        Notify all project members when a Project, Milestone, or Sprint health degrades.
+        Called only when severity increases (e.g. on_track → at_risk).
+        """
+        LABELS = {
+            'on_track': 'On Track',
+            'at_risk':  'At Risk',
+            'behind':   'Behind',
+            'critical': 'Critical',
+        }
+
+        # Resolve the parent project regardless of entity type
+        entity_type = entity.__class__.__name__
+        if entity_type == 'Project':
+            project = entity
+        elif entity_type == 'Milestone':
+            project = entity.project
+        elif entity_type == 'Sprint':
+            project = entity.milestone.project
+        else:
+            logger.warning(f"create_health_alert: unsupported entity type {entity_type}")
+            return []
+
+        verb = (
+            f'{entity_type} "{entity.name}" health changed: '
+            f'{LABELS.get(old_status, old_status)} → {LABELS.get(new_status, new_status)}'
+        )
+
+        notifications = []
+        notified_ids = set()
+
+        for member in project.members.all():
+            if member.id in notified_ids:
+                continue
+            notified_ids.add(member.id)
+            try:
+                n = NotificationService.create_notification(
+                    recipient=member,
+                    verb=verb,
+                    notification_type='health_degradation',
+                    actor=None,
+                    target=entity,
+                    send_email=False,  # avoid email spam on automated recalculations
+                )
+                notifications.append(n)
+            except Exception as e:
+                logger.error(f"Failed to create health_degradation notification for {member.username}: {e}")
+
+        logger.info(f"Health degradation alert sent for {entity_type} '{entity.name}': {old_status} → {new_status} ({len(notifications)} recipients)")
+        return notifications
+
+    @staticmethod
     def mark_all_as_read(user):
         """
         Mark all notifications as read for a user.

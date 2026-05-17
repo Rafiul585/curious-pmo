@@ -77,6 +77,14 @@ def refresh_health(entity, save=True) -> None:
         entity.__class__.__name__, entity.name, old_status, new_status
     )
 
+    # Fire degradation notification only when severity worsens
+    if SEVERITY.get(new_status, 0) > SEVERITY.get(old_status, 0):
+        try:
+            from pm.services.notification_service import NotificationService
+            NotificationService.create_health_alert(entity, old_status, new_status)
+        except Exception as e:
+            logger.error("Failed to send health degradation alert for %s '%s': %s", entity.__class__.__name__, entity.name, e)
+
 
 def refresh_project_tree_health(project) -> None:
     """Refresh health for every Sprint and Milestone under a project, then the project itself."""
