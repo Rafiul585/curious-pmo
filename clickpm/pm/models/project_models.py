@@ -3,6 +3,13 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from .user_models import User, Role
 from .workspace_models import Workspace
 
+HEALTH_STATUS_CHOICES = [
+    ('on_track', 'On Track'),
+    ('at_risk',  'At Risk'),
+    ('behind',   'Behind'),
+    ('critical', 'Critical'),
+]
+
 # Project model
 class Project(models.Model):
     name = models.CharField(max_length=200)
@@ -10,6 +17,7 @@ class Project(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=50, default='Not Started')
+    health_status = models.CharField(max_length=20, choices=HEALTH_STATUS_CHOICES, default='on_track', blank=True, null=True)
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name='projects')
     visibility = models.CharField(max_length=20, choices=[('public', 'Public'), ('private', 'Private')], default='private')
     members = models.ManyToManyField(User, through='ProjectMember', related_name='projects')
@@ -61,6 +69,7 @@ class Milestone(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=50, default='Not Started')
+    health_status = models.CharField(max_length=20, choices=HEALTH_STATUS_CHOICES, default='on_track', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -93,6 +102,7 @@ class Sprint(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=50, default='Not Started')
+    health_status = models.CharField(max_length=20, choices=HEALTH_STATUS_CHOICES, default='on_track', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
