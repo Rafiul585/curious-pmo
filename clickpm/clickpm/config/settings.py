@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Third-party
+    'channels',
     'rest_framework',
     'rest_framework.authtoken',
     'django_filters',
@@ -67,6 +68,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'clickpm.config.wsgi.application'
 ASGI_APPLICATION = 'clickpm.config.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases

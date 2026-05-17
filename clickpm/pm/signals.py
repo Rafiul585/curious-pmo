@@ -4,6 +4,7 @@ from django.dispatch import receiver
 
 from pm.models.task_models import Task
 from pm.models.project_models import Sprint, Milestone
+from pm.models.notification_models import Notification
 from pm.services.health_service import refresh_health
 
 logger = logging.getLogger(__name__)
@@ -52,3 +53,32 @@ def milestone_saved_refresh_health(sender, instance, **kwargs):
     refresh_health(instance)
     if instance.project:
         refresh_health(instance.project)
+
+
+@receiver(post_save, sender=Notification)
+def push_notification_to_websocket(sender, instance, created, **kwargs):
+    """Push a lightweight event to the recipient's WebSocket group on new notifications."""
+    if not created:
+        return
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            return
+        unread_count = Notification.objects.filter(
+            recipient=instance.recipient, read=False
+        ).count()
+        async_to_sync(channel_layer.group_send)(
+            f'notifications_{instance.recipient_id}',
+            {
+                'type': 'notification_message',
+                'data': {
+                    'type': 'new_notification',
+                    'unread_count': unread_count,
+                },
+            }
+        )
+    except Exception:
+        # Never let a WebSocket push failure break the main request
+        pass
