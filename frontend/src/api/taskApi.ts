@@ -30,6 +30,7 @@ export interface Task {
   reporter_details?: TaskUser;
   due_date?: string;
   start_date?: string;
+  is_blocked?: boolean;
   created_at?: string;
   updated_at?: string;
 }
