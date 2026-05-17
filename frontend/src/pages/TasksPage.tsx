@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Avatar,
@@ -57,14 +58,29 @@ const statusColors: Record<string, 'default' | 'primary' | 'warning' | 'success'
 
 export const TasksPage = () => {
   const { enqueueSnackbar } = useSnackbar();
-  const [tabValue, setTabValue] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
-  const [filters, setFilters] = useState({
-    status: '',
-    priority: '',
-    project: '',
-  });
+
+  const tabValue = Number(searchParams.get('tab') ?? '0');
+  const filters = {
+    status: searchParams.get('status') ?? '',
+    priority: searchParams.get('priority') ?? '',
+    project: searchParams.get('project') ?? '',
+  };
+
+  const setTabValue = (v: number) =>
+    setSearchParams((p) => { p.set('tab', String(v)); return p; }, { replace: true });
+
+  const setFilters = (updater: typeof filters | ((prev: typeof filters) => typeof filters)) => {
+    const next = typeof updater === 'function' ? updater(filters) : updater;
+    setSearchParams((p) => {
+      if (next.status) p.set('status', next.status); else p.delete('status');
+      if (next.priority) p.set('priority', next.priority); else p.delete('priority');
+      if (next.project) p.set('project', next.project); else p.delete('project');
+      return p;
+    }, { replace: true });
+  };
 
   const { data: allTasks, isLoading: loadingAll } = useListTasksQuery();
   const { data: myTasks, isLoading: loadingMy } = useGetMyTasksQuery();

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Avatar,
   Box,
@@ -1088,8 +1088,14 @@ const HEALTH_FILTERS = [
 
 const ProjectProgressReport = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: progress, isLoading } = useGetProjectsProgressQuery();
-  const [healthFilter, setHealthFilter] = useState<string>('all');
+  const healthFilter = searchParams.get('health') ?? 'all';
+  const setHealthFilter = (v: string) =>
+    setSearchParams((p) => {
+      if (v === 'all') p.delete('health'); else p.set('health', v);
+      return p;
+    }, { replace: true });
 
   if (isLoading) {
     return (

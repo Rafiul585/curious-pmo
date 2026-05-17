@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   Avatar,
@@ -109,8 +109,18 @@ export const ProjectDetailPage = () => {
   const { enqueueSnackbar } = useSnackbar();
   const projectId = Number(id);
 
-  const [tabValue, setTabValue] = useState(0);
-  const [milestoneHealthFilter, setMilestoneHealthFilter] = useState<string>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabValue = Number(searchParams.get('tab') ?? '0');
+  const milestoneHealthFilter = searchParams.get('health') ?? 'all';
+
+  const setTabValue = (v: number) =>
+    setSearchParams((p) => { p.set('tab', String(v)); return p; }, { replace: true });
+
+  const setMilestoneHealthFilter = (v: string) =>
+    setSearchParams((p) => {
+      if (v === 'all') p.delete('health'); else p.set('health', v);
+      return p;
+    }, { replace: true });
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
