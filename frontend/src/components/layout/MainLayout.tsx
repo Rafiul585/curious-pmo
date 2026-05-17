@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   AppBar,
   Avatar,
@@ -28,6 +28,7 @@ import { logout } from '../../store/slices/authSlice';
 import { NavSidebar } from './NavSidebar';
 import { GlobalSearch } from '../search/GlobalSearch';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { CommandPalette } from '../search/CommandPalette';
 
 export const MainLayout = () => {
   const dispatch = useAppDispatch();
@@ -36,6 +37,18 @@ export const MainLayout = () => {
   const user = useAppSelector((s) => s.auth.user);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -152,6 +165,8 @@ export const MainLayout = () => {
           <Outlet />
         </Box>
       </Box>
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </Box>
   );
 };
