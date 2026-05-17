@@ -29,6 +29,7 @@ import {
   ExpandMore,
   FlagCircle,
   MoreVert,
+  ShowChart,
   Speed,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
@@ -45,6 +46,7 @@ import {
   useUpdateSprintMutation,
   useDeleteSprintMutation,
 } from '../../api/sprintApi';
+import { BurndownChart } from './BurndownChart';
 
 interface MilestoneManagerProps {
   projectId: number;
@@ -86,6 +88,7 @@ export const MilestoneManager = ({ projectId }: MilestoneManagerProps) => {
 
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuTarget, setMenuTarget] = useState<{ type: 'milestone' | 'sprint'; item: Milestone | MilestoneSprint } | null>(null);
+  const [burndownSprint, setBurndownSprint] = useState<MilestoneSprint | null>(null);
 
   // API hooks
   const { data: milestones, isLoading: loadingMilestones } = useListMilestonesQuery({ project: projectId });
@@ -345,6 +348,16 @@ export const MilestoneManager = ({ projectId }: MilestoneManagerProps) => {
 
       {/* Context Menu */}
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+        {menuTarget?.type === 'sprint' && (
+          <MenuItem
+            onClick={() => {
+              setBurndownSprint(menuTarget.item as MilestoneSprint);
+              setMenuAnchor(null);
+            }}
+          >
+            <ShowChart fontSize="small" sx={{ mr: 1 }} /> Burndown
+          </MenuItem>
+        )}
         <MenuItem
           onClick={() => {
             if (menuTarget?.type === 'milestone') {
@@ -433,6 +446,24 @@ export const MilestoneManager = ({ projectId }: MilestoneManagerProps) => {
           >
             {creatingMilestone || updatingMilestone ? 'Saving...' : 'Save'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Burndown Dialog */}
+      <Dialog
+        open={Boolean(burndownSprint)}
+        onClose={() => setBurndownSprint(null)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>Burndown Chart — {burndownSprint?.name}</DialogTitle>
+        <DialogContent>
+          {burndownSprint && (
+            <BurndownChart sprintId={burndownSprint.id} sprintName={burndownSprint.name} />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBurndownSprint(null)}>Close</Button>
         </DialogActions>
       </Dialog>
 

@@ -39,6 +39,15 @@ export interface SprintDetail extends Sprint {
   }[];
 }
 
+export interface BurndownData {
+  sprint_start: string;
+  sprint_end: string;
+  total_tasks: number;
+  labels: string[];
+  ideal: number[];
+  actual: (number | null)[];
+}
+
 export interface CreateSprintData {
   name: string;
   description?: string;
@@ -105,6 +114,12 @@ export const sprintApi = api.injectEndpoints({
       invalidatesTags: ['Sprint', 'Milestone', 'Task', 'Gantt', 'Kanban'],
     }),
 
+    // Get sprint burndown data
+    getSprintBurndown: build.query<BurndownData, number>({
+      query: (id) => ({ url: `/sprints/${id}/burndown/` }),
+      providesTags: (_result, _error, id) => [{ type: 'Sprint', id }],
+    }),
+
     // Get sprint activity logs
     getSprintActivityLogs: build.query<
       { sprint_id: number; sprint_name: string; total_logs: number; activity_logs: ActivityLog[] },
@@ -127,5 +142,6 @@ export const {
   useCreateSprintMutation,
   useUpdateSprintMutation,
   useDeleteSprintMutation,
+  useGetSprintBurndownQuery,
   useGetSprintActivityLogsQuery,
 } = sprintApi;
