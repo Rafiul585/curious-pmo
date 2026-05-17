@@ -61,7 +61,7 @@ import {
   useGetAvailableMembersQuery,
 } from '../api/projectApi';
 import { useListMilestonesQuery, useCreateMilestoneMutation } from '../api/milestoneApi';
-import { useListTasksQuery, useBulkUpdateTasksMutation } from '../api/taskApi';
+import { useListTasksQuery, useBulkUpdateTasksMutation, useCreateTaskMutation } from '../api/taskApi';
 import { MilestoneManager } from '../components/projects/MilestoneManager';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
 import { HealthBadge } from '../components/feedback/HealthBadge';
@@ -139,7 +139,12 @@ export const ProjectDetailPage = () => {
   const [removeMember] = useRemoveProjectMemberMutation();
   const [createMilestone, { isLoading: creatingMilestone }] = useCreateMilestoneMutation();
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [addTaskTitle, setAddTaskTitle] = useState('');
   const [bulkUpdate] = useBulkUpdateTasksMutation();
+  const [createTask] = useCreateTaskMutation();
+
+  const firstSprintId = milestones?.flatMap((m) => m.sprints ?? []).find((s) => !!s)?.id;
 
   const toggleTaskSelection = (taskId: number) => {
     setSelectedTaskIds((prev) => {
@@ -148,6 +153,26 @@ export const ProjectDetailPage = () => {
       else next.add(taskId);
       return next;
     });
+  };
+
+  const handleAddTask = async () => {
+    const title = addTaskTitle.trim();
+    if (!title) {
+      setShowAddTask(false);
+      return;
+    }
+    try {
+      await createTask({
+        title,
+        status: 'To-do',
+        priority: 'Medium',
+        ...(firstSprintId !== undefined ? { sprint: firstSprintId } : {}),
+      }).unwrap();
+      setAddTaskTitle('');
+      enqueueSnackbar('Task created', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to create task', { variant: 'error' });
+    }
   };
 
   const handleBulkUpdate = async (newStatus: string) => {
@@ -632,6 +657,46 @@ export const ProjectDetailPage = () => {
                   </Box>
                 ) : (
                   <Typography color="text.secondary">No tasks in this project yet.</Typography>
+                )}
+
+                {/* Inline add-task row */}
+                {showAddTask ? (
+                  <Paper variant="outlined" sx={{ mt: 0.5, px: 2, py: 1 }}>
+                    <TextField
+                      autoFocus
+                      size="small"
+                      fullWidth
+                      placeholder="Task title… (Enter to save, Escape to cancel)"
+                      value={addTaskTitle}
+                      onChange={(e) => setAddTaskTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleAddTask(); }
+                        if (e.key === 'Escape') { setShowAddTask(false); setAddTaskTitle(''); }
+                      }}
+                      onBlur={() => { setShowAddTask(false); setAddTaskTitle(''); }}
+                      variant="standard"
+                      InputProps={{ disableUnderline: true }}
+                    />
+                  </Paper>
+                ) : (
+                  <Box
+                    sx={{
+                      mt: 0.5,
+                      px: 2,
+                      py: 0.75,
+                      cursor: 'pointer',
+                      color: 'text.secondary',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      borderRadius: 1,
+                      '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
+                    }}
+                    onClick={() => setShowAddTask(true)}
+                  >
+                    <Add fontSize="small" />
+                    <Typography variant="body2">Add task</Typography>
+                  </Box>
                 )}
               </Grid>
             </Grid>

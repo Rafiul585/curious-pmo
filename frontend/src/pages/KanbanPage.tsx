@@ -16,9 +16,11 @@ import {
   Tooltip,
   ToggleButtonGroup,
   ToggleButton,
+  TextField,
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import AddIcon from '@mui/icons-material/Add';
 import { useListProjectsQuery } from '../api/projectApi';
 import {
   useGetProjectKanbanQuery,
@@ -26,7 +28,8 @@ import {
   KanbanTask,
   KanbanColumn,
 } from '../api/kanbanApi';
-import { useChangeTaskStatusMutation } from '../api/taskApi';
+import { useChangeTaskStatusMutation, useCreateTaskMutation } from '../api/taskApi';
+import { useSnackbar } from 'notistack';
 
 const PRIORITY_COLORS: Record<string, string> = {
   Low: '#4caf50',
@@ -149,9 +152,18 @@ interface KanbanColumnProps {
   isDragOver: boolean;
   onDragEnter: () => void;
   onDragLeave: () => void;
+  isAddingTask: boolean;
+  addingTitle: string;
+  onAddTaskClick: () => void;
+  onAddTaskTitleChange: (value: string) => void;
+  onAddTaskSave: () => void;
+  onAddTaskCancel: () => void;
 }
 
-const KanbanColumnComponent = ({ column, onDrop, isDragOver, onDragEnter, onDragLeave }: KanbanColumnProps) => {
+const KanbanColumnComponent = ({
+  column, onDrop, isDragOver, onDragEnter, onDragLeave,
+  isAddingTask, addingTitle, onAddTaskClick, onAddTaskTitleChange, onAddTaskSave, onAddTaskCancel,
+}: KanbanColumnProps) => {
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -222,6 +234,44 @@ const KanbanColumnComponent = ({ column, onDrop, isDragOver, onDragEnter, onDrag
         ) : (
           column.tasks.map((task) => <TaskCard key={task.id} task={task} />)
         )}
+
+        {/* Inline add-task row */}
+        {isAddingTask ? (
+          <Box sx={{ mt: 0.5 }}>
+            <TextField
+              autoFocus
+              size="small"
+              fullWidth
+              placeholder="Task title…"
+              value={addingTitle}
+              onChange={(e) => onAddTaskTitleChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); onAddTaskSave(); }
+                if (e.key === 'Escape') onAddTaskCancel();
+              }}
+              onBlur={onAddTaskCancel}
+            />
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              mt: 0.5,
+              px: 0.5,
+              py: 0.5,
+              cursor: 'pointer',
+              color: 'text.secondary',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              borderRadius: 1,
+              '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
+            }}
+            onClick={onAddTaskClick}
+          >
+            <AddIcon fontSize="small" />
+            <Typography variant="caption">Add task</Typography>
+          </Box>
+        )}
       </Box>
     </Paper>
   );
@@ -231,6 +281,9 @@ export const KanbanPage = () => {
   const [viewMode, setViewMode] = useState<'my' | 'project'>('my');
   const [selectedProject, setSelectedProject] = useState<number | ''>('');
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [activeColumnInput, setActiveColumnInput] = useState<string | null>(null);
+  const [inlineTitle, setInlineTitle] = useState('');
+  const { enqueueSnackbar } = useSnackbar();
 
   const { data: projects } = useListProjectsQuery();
   const { data: myKanban, isLoading: loadingMyKanban } = useGetMyKanbanQuery(
@@ -243,9 +296,15 @@ export const KanbanPage = () => {
   );
 
   const [changeStatus] = useChangeTaskStatusMutation();
+  const [createTask] = useCreateTaskMutation();
 
   const kanbanData = viewMode === 'my' ? myKanban : projectKanban;
   const isLoading = viewMode === 'my' ? loadingMyKanban : loadingProjectKanban;
+
+  // Use a sprint from the current kanban tasks (project view only — keeps new tasks in project scope)
+  const firstSprintId = viewMode === 'project'
+    ? kanbanData?.columns.flatMap((c) => c.tasks).find((t) => t.sprint)?.sprint.id
+    : undefined;
 
   const handleTaskDrop = async (taskId: number, newStatus: string) => {
     // Find current task to check if status actually changed
@@ -262,6 +321,23 @@ export const KanbanPage = () => {
       }
     }
     setDragOverColumn(null);
+  };
+
+  const handleAddTaskSave = async (columnStatus: string) => {
+    const title = inlineTitle.trim();
+    setActiveColumnInput(null);
+    setInlineTitle('');
+    if (!title) return;
+    try {
+      await createTask({
+        title,
+        status: columnStatus,
+        priority: 'Medium',
+        ...(firstSprintId !== undefined ? { sprint: firstSprintId } : {}),
+      }).unwrap();
+    } catch {
+      enqueueSnackbar('Failed to create task', { variant: 'error' });
+    }
   };
 
   return (
@@ -326,6 +402,12 @@ export const KanbanPage = () => {
                   isDragOver={dragOverColumn === column.id}
                   onDragEnter={() => setDragOverColumn(column.id)}
                   onDragLeave={() => setDragOverColumn(null)}
+                  isAddingTask={activeColumnInput === column.id}
+                  addingTitle={inlineTitle}
+                  onAddTaskClick={() => { setInlineTitle(''); setActiveColumnInput(column.id); }}
+                  onAddTaskTitleChange={setInlineTitle}
+                  onAddTaskSave={() => handleAddTaskSave(column.status)}
+                  onAddTaskCancel={() => { setActiveColumnInput(null); setInlineTitle(''); }}
                 />
               ))}
             </Stack>
