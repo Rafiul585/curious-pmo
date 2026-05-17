@@ -94,6 +94,7 @@ import {
 import { useListProjectsQuery } from '../api/projectApi';
 import { useGetProjectTimelineQuery, TimelineItem } from '../api/ganttApi';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
+import { HealthBadge } from '../components/feedback/HealthBadge';
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, ChartTooltip, Legend, Filler);
 
@@ -1125,7 +1126,8 @@ const ProjectProgressReport = () => {
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: getStatusColor(project.status) }} />
-                  <Typography variant="body2" fontWeight={500} noWrap sx={{ maxWidth: 150 }}>{project.name}</Typography>
+                  <Typography variant="body2" fontWeight={500} noWrap sx={{ maxWidth: 120 }}>{project.name}</Typography>
+                  {project.health_status && <HealthBadge status={project.health_status} />}
                 </Stack>
                 <Stack direction="row" spacing={1} alignItems="center">
                   {project.overdue_tasks > 0 && (

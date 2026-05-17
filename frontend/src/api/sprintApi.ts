@@ -17,6 +17,7 @@ export interface Sprint {
   project_id?: number;
   project_name?: string;
   status: 'planning' | 'active' | 'completed' | 'cancelled';
+  health_status?: 'on_track' | 'at_risk' | 'behind' | 'critical' | null;
   start_date?: string;
   end_date?: string;
   goal?: string;

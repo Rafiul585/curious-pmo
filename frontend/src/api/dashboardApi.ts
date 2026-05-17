@@ -79,6 +79,7 @@ export interface ProjectProgress {
   id: number;
   name: string;
   status: string;
+  health_status?: 'on_track' | 'at_risk' | 'behind' | 'critical' | null;
   start_date?: string;
   end_date?: string;
   total_tasks: number;
