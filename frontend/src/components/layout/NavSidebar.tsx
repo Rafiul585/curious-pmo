@@ -10,6 +10,8 @@ import {
   Divider,
   Typography,
   alpha,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -61,7 +63,14 @@ const navItems: NavItemOrDivider[] = [
 
 const DRAWER_WIDTH = 240;
 
-export const NavSidebar = () => {
+interface NavSidebarProps {
+  mobileOpen: boolean;
+  onClose: () => void;
+}
+
+export const NavSidebar = ({ mobileOpen, onClose }: NavSidebarProps) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
@@ -73,7 +82,10 @@ export const NavSidebar = () => {
 
   return (
     <Drawer
-      variant="permanent"
+      variant={isMobile ? 'temporary' : 'permanent'}
+      open={isMobile ? mobileOpen : true}
+      onClose={onClose}
+      ModalProps={{ keepMounted: true }}
       sx={{
         width: DRAWER_WIDTH,
         flexShrink: 0,

@@ -35,6 +35,7 @@ export const MainLayout = () => {
   const mode = useAppSelector((s) => s.theme?.mode || 'light');
   const user = useAppSelector((s) => s.auth.user);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -43,8 +44,8 @@ export const MainLayout = () => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <NavSidebar />
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <NavSidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', width: { md: `calc(100% - 240px)` } }}>
         <AppBar
           position="sticky"
           color="default"
@@ -57,7 +58,7 @@ export const MainLayout = () => {
         >
           <Toolbar sx={{ gap: 2 }}>
             {/* Mobile menu button - only shown on mobile */}
-            <IconButton edge="start" sx={{ display: { md: 'none' } }}>
+            <IconButton edge="start" onClick={() => setMobileOpen(true)} sx={{ display: { md: 'none' } }}>
               <MenuIcon />
             </IconButton>
 
