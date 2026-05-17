@@ -94,6 +94,7 @@ export const ProjectDetailPage = () => {
   const projectId = Number(id);
 
   const [tabValue, setTabValue] = useState(0);
+  const [milestoneHealthFilter, setMilestoneHealthFilter] = useState<string>('all');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
@@ -419,7 +420,7 @@ export const ProjectDetailPage = () => {
 
               {/* Milestones List */}
               <Grid item xs={12}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
                   <Typography variant="h6" fontWeight={600}>
                     Milestones
                   </Typography>
@@ -427,9 +428,26 @@ export const ProjectDetailPage = () => {
                     Add Milestone
                   </Button>
                 </Stack>
-                {milestones && milestones.length > 0 ? (
+                {/* Health filter chips */}
+                <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mb: 2, gap: 0.5 }}>
+                  {(['all', 'on_track', 'at_risk', 'behind', 'critical'] as const).map((v) => (
+                    <Chip
+                      key={v}
+                      label={v === 'all' ? 'All' : v === 'on_track' ? 'On Track' : v === 'at_risk' ? 'At Risk' : v === 'behind' ? 'Behind' : 'Critical'}
+                      size="small"
+                      onClick={() => setMilestoneHealthFilter(v)}
+                      color={milestoneHealthFilter === v ? 'primary' : 'default'}
+                      variant={milestoneHealthFilter === v ? 'filled' : 'outlined'}
+                    />
+                  ))}
+                </Stack>
+                {milestones && milestones.length > 0 ? (() => {
+                  const filtered = milestoneHealthFilter === 'all'
+                    ? milestones
+                    : milestones.filter((m) => m.health_status === milestoneHealthFilter);
+                  return filtered.length > 0 ? (
                   <Grid container spacing={2}>
-                    {milestones.map((milestone) => (
+                    {filtered.map((milestone) => (
                       <Grid item xs={12} sm={6} md={4} key={milestone.id}>
                         <Card
                           variant="outlined"
@@ -501,7 +519,10 @@ export const ProjectDetailPage = () => {
                       </Grid>
                     ))}
                   </Grid>
-                ) : (
+                  ) : (
+                    <Typography color="text.secondary">No milestones match this filter.</Typography>
+                  );
+                })() : (
                   <Typography color="text.secondary">No milestones yet.</Typography>
                 )}
               </Grid>

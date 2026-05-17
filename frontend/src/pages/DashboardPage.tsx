@@ -1078,9 +1078,18 @@ const TeamWorkloadReport = () => {
 // ============================================
 // PROJECT PROGRESS REPORT COMPONENT
 // ============================================
+const HEALTH_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'on_track', label: 'On Track' },
+  { value: 'at_risk', label: 'At Risk' },
+  { value: 'behind', label: 'Behind' },
+  { value: 'critical', label: 'Critical' },
+] as const;
+
 const ProjectProgressReport = () => {
   const navigate = useNavigate();
   const { data: progress, isLoading } = useGetProjectsProgressQuery();
+  const [healthFilter, setHealthFilter] = useState<string>('all');
 
   if (isLoading) {
     return (
@@ -1109,6 +1118,13 @@ const ProjectProgressReport = () => {
     return colors[status] || '#9e9e9e';
   };
 
+  const visibleProjects = progress
+    ? (healthFilter === 'all'
+        ? progress.projects
+        : progress.projects.filter((p) => p.health_status === healthFilter)
+      ).slice(0, 5)
+    : [];
+
   return (
     <Paper sx={{ p: 3, height: '100%' }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
@@ -1119,9 +1135,23 @@ const ProjectProgressReport = () => {
         <Button size="small" onClick={() => navigate('/projects')}>View All</Button>
       </Stack>
 
-      {progress && progress.projects.length > 0 ? (
+      {/* Health filter chips */}
+      <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mb: 2, gap: 0.5 }}>
+        {HEALTH_FILTERS.map((f) => (
+          <Chip
+            key={f.value}
+            label={f.label}
+            size="small"
+            onClick={() => setHealthFilter(f.value)}
+            color={healthFilter === f.value ? 'primary' : 'default'}
+            variant={healthFilter === f.value ? 'filled' : 'outlined'}
+          />
+        ))}
+      </Stack>
+
+      {visibleProjects.length > 0 ? (
         <Stack spacing={2}>
-          {progress.projects.slice(0, 5).map((project) => (
+          {visibleProjects.map((project) => (
             <Box key={project.id}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
                 <Stack direction="row" alignItems="center" spacing={1}>
@@ -1172,7 +1202,9 @@ const ProjectProgressReport = () => {
       ) : (
         <Box sx={{ py: 4, textAlign: 'center' }}>
           <FolderOff sx={{ fontSize: 48, color: 'grey.300', mb: 1 }} />
-          <Typography color="text.secondary">No projects found</Typography>
+          <Typography color="text.secondary">
+            {healthFilter === 'all' ? 'No projects found' : 'No projects match this filter'}
+          </Typography>
         </Box>
       )}
     </Paper>
