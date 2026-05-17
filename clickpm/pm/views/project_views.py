@@ -556,3 +556,15 @@ class SprintViewSet(viewsets.ModelViewSet):
             )
 
         return Response(data)
+
+    @action(detail=True, methods=['GET'])
+    def burndown(self, request, pk=None):
+        """
+        GET /api/sprints/{id}/burndown/
+
+        Returns ideal vs. actual burndown data for the sprint.
+        """
+        from pm.services.burndown_service import get_sprint_burndown
+        sprint = self.get_object()
+        data = get_sprint_burndown(sprint)
+        return Response(data)
