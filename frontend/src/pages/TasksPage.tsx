@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
   Avatar,
@@ -59,7 +59,18 @@ const statusColors: Record<string, 'default' | 'primary' | 'warning' | 'success'
 export const TasksPage = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Auto-open create dialog when navigated here with the N shortcut
+  useEffect(() => {
+    const state = location.state as { openCreate?: boolean } | null;
+    if (state?.openCreate) {
+      setCreateDialogOpen(true);
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+    }
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
 
   const tabValue = Number(searchParams.get('tab') ?? '0');

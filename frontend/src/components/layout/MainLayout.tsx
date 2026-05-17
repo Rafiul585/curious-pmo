@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   AppBar,
   Avatar,
@@ -22,6 +22,7 @@ import {
   Logout,
 } from '@mui/icons-material';
 import { Outlet, useNavigate } from 'react-router-dom';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { toggleTheme } from '../../store/slices/themeSlice';
 import { logout } from '../../store/slices/authSlice';
@@ -39,16 +40,10 @@ export const MainLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setPaletteOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+  useKeyboardShortcuts({
+    onPaletteOpen: () => setPaletteOpen((prev) => !prev),
+    onNewTask: () => navigate('/tasks', { state: { openCreate: true } }),
+  });
 
   const handleLogout = () => {
     dispatch(logout());
