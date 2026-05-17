@@ -91,6 +91,14 @@ const TaskCard = ({ task }: TaskCardProps) => {
               height: 20,
             }}
           />
+          {task.is_blocked && (
+            <Chip
+              label="Blocked"
+              color="error"
+              size="small"
+              sx={{ fontSize: '0.65rem', height: 20, fontWeight: 600 }}
+            />
+          )}
         </Stack>
 
         <Stack direction="row" justifyContent="space-between" alignItems="center">

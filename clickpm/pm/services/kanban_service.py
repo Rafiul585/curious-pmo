@@ -13,6 +13,11 @@ KANBAN_COLUMNS = [
 
 def _serialize_task(task):
     """Serialize task for Kanban board"""
+    # Use prefetched dependent_on when available to avoid N+1
+    is_blocked = any(
+        dep.type == 'Blocked By' and dep.depends_on.status in ('To-do', 'In Progress', 'Review')
+        for dep in task.dependent_on.all()
+    )
     return {
         'id': task.id,
         'title': task.title,
@@ -21,6 +26,7 @@ def _serialize_task(task):
         'priority': task.priority,
         'start_date': task.start_date.isoformat() if task.start_date else None,
         'due_date': task.due_date.isoformat() if task.due_date else None,
+        'is_blocked': is_blocked,
         'assignee': {
             'id': task.assignee.id,
             'username': task.assignee.username,
@@ -48,7 +54,9 @@ def get_kanban_for_sprint(sprint_id):
     except Sprint.DoesNotExist:
         return None
 
-    tasks = Task.objects.filter(sprint=sprint).select_related('assignee', 'reporter', 'sprint')
+    tasks = Task.objects.filter(sprint=sprint).select_related(
+        'assignee', 'reporter', 'sprint'
+    ).prefetch_related('dependent_on__depends_on')
 
     columns = []
     for col in KANBAN_COLUMNS:
@@ -91,7 +99,9 @@ def get_kanban_for_project(project_id):
 
     tasks = Task.objects.filter(
         sprint__milestone__project=project
-    ).select_related('assignee', 'reporter', 'sprint', 'sprint__milestone')
+    ).select_related(
+        'assignee', 'reporter', 'sprint', 'sprint__milestone'
+    ).prefetch_related('dependent_on__depends_on')
 
     columns = []
     for col in KANBAN_COLUMNS:
@@ -121,7 +131,7 @@ def get_kanban_for_user(user, project_id=None):
     """
     tasks = Task.objects.filter(assignee=user).select_related(
         'assignee', 'reporter', 'sprint', 'sprint__milestone', 'sprint__milestone__project'
-    )
+    ).prefetch_related('dependent_on__depends_on')
 
     if project_id:
         tasks = tasks.filter(sprint__milestone__project_id=project_id)

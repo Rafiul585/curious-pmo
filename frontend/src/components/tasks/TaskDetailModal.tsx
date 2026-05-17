@@ -335,6 +335,14 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                           size="small"
                           variant="outlined"
                         />
+                        {task.is_blocked && (
+                          <Chip
+                            label="Blocked"
+                            color="error"
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
+                        )}
                       </>
                     )}
                   </Stack>

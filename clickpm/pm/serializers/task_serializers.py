@@ -17,14 +17,21 @@ class TaskSerializer(serializers.ModelSerializer):
     reporter_details = UserMinimalSerializer(source='reporter', read_only=True)
     dependencies = TaskDependencySerializer(source='dependent_on', many=True, read_only=True)
     sprint_name = serializers.CharField(source='sprint.name', read_only=True)
+    is_blocked = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
         fields = [
             'id', 'sprint', 'sprint_name', 'title', 'description', 'assignee', 'assignee_details',
             'reporter', 'reporter_details', 'status', 'priority', 'start_date',
-            'due_date', 'dependencies', 'created_at', 'updated_at'
+            'due_date', 'dependencies', 'is_blocked', 'created_at', 'updated_at'
         ]
+
+    def get_is_blocked(self, obj) -> bool:
+        return obj.dependent_on.filter(
+            type='Blocked By',
+            depends_on__status__in=['To-do', 'In Progress', 'Review'],
+        ).exists()
 
 
 class TaskDetailSerializer(serializers.ModelSerializer):
@@ -34,6 +41,7 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     dependencies = TaskDependencySerializer(source='dependent_on', many=True, read_only=True)
     sprint_name = serializers.CharField(source='sprint.name', read_only=True)
     sprint_details = serializers.SerializerMethodField()
+    is_blocked = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -41,8 +49,14 @@ class TaskDetailSerializer(serializers.ModelSerializer):
             'id', 'sprint', 'sprint_name', 'sprint_details', 'title', 'description',
             'assignee', 'assignee_details', 'reporter', 'reporter_details',
             'status', 'priority', 'start_date', 'due_date',
-            'dependencies', 'created_at', 'updated_at'
+            'dependencies', 'is_blocked', 'created_at', 'updated_at'
         ]
+
+    def get_is_blocked(self, obj) -> bool:
+        return obj.dependent_on.filter(
+            type='Blocked By',
+            depends_on__status__in=['To-do', 'In Progress', 'Review'],
+        ).exists()
 
     def get_sprint_details(self, obj):
         if obj.sprint:

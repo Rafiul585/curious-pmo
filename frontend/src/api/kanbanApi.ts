@@ -8,6 +8,7 @@ export interface KanbanTask {
   priority: string;
   start_date: string | null;
   due_date: string | null;
+  is_blocked?: boolean;
   assignee: {
     id: number;
     username: string;
