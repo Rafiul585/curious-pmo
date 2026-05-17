@@ -131,7 +131,7 @@ Message format: `"Sprint 'Alpha' changed from On Track → At Risk"`
 
 ---
 
-## [ ] A6 — Frontend: HealthBadge Component
+## [x] A6 — Frontend: HealthBadge Component
 
 **File to create:** `frontend/src/components/feedback/HealthBadge.tsx`
 ```tsx
