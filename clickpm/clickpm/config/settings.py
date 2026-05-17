@@ -32,7 +32,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
 
     # Local app
-    'pm',
+    'pm.apps.PmConfig',
 ]
 
 MIDDLEWARE = [
