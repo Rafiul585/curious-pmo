@@ -16,10 +16,13 @@ import {
   Link,
   List,
   ListItem,
+  ListItemAvatar,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
   Menu,
   MenuItem,
+  Paper,
   Stack,
   Tab,
   Tabs,
@@ -83,7 +86,11 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const [editMode, setEditMode] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [newComment, setNewComment] = useState('');
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStart, setMentionStart] = useState(-1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const [editForm, setEditForm] = useState({
     title: '',
     description: '',
@@ -182,6 +189,32 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
       enqueueSnackbar('Failed to add comment', { variant: 'error' });
     }
   };
+
+  const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setNewComment(val);
+    const pos = e.target.selectionStart ?? val.length;
+    const match = val.slice(0, pos).match(/@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionStart(pos - match[0].length);
+      setMentionOpen(true);
+    } else {
+      setMentionOpen(false);
+    }
+  };
+
+  const handleMentionSelect = (username: string) => {
+    const before = newComment.slice(0, mentionStart);
+    const after = newComment.slice(mentionStart + 1 + mentionQuery.length);
+    setNewComment(`${before}@${username} ${after}`);
+    setMentionOpen(false);
+    setTimeout(() => commentInputRef.current?.focus(), 0);
+  };
+
+  const mentionMembers = projectMembers
+    .filter((m) => !mentionQuery || m.user.username.toLowerCase().startsWith(mentionQuery.toLowerCase()))
+    .slice(0, 6);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -379,15 +412,58 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                   {tabValue === 0 && (
                     <Box>
                       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-                        <TextField
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          placeholder="Add a comment..."
-                          fullWidth
-                          multiline
-                          rows={2}
-                          size="small"
-                        />
+                        <Box sx={{ position: 'relative', flex: 1 }}>
+                          <TextField
+                            value={newComment}
+                            onChange={handleCommentChange}
+                            onKeyDown={(e) => { if (e.key === 'Escape') setMentionOpen(false); }}
+                            onBlur={() => setTimeout(() => setMentionOpen(false), 150)}
+                            placeholder="Add a comment… type @ to mention someone"
+                            fullWidth
+                            multiline
+                            rows={2}
+                            size="small"
+                            inputRef={commentInputRef}
+                          />
+                          {mentionOpen && mentionMembers.length > 0 && (
+                            <Paper
+                              elevation={4}
+                              sx={{
+                                position: 'absolute',
+                                zIndex: 1500,
+                                top: '100%',
+                                left: 0,
+                                right: 0,
+                                maxHeight: 200,
+                                overflow: 'auto',
+                                mt: 0.5,
+                                borderRadius: 1,
+                              }}
+                            >
+                              <List dense disablePadding>
+                                {mentionMembers.map((member) => (
+                                  <ListItemButton
+                                    key={member.user.id}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      handleMentionSelect(member.user.username);
+                                    }}
+                                  >
+                                    <ListItemAvatar sx={{ minWidth: 36 }}>
+                                      <Avatar sx={{ width: 24, height: 24, fontSize: '0.7rem', bgcolor: 'primary.main' }}>
+                                        {member.user.username[0].toUpperCase()}
+                                      </Avatar>
+                                    </ListItemAvatar>
+                                    <ListItemText
+                                      primary={member.user.username}
+                                      primaryTypographyProps={{ variant: 'body2' }}
+                                    />
+                                  </ListItemButton>
+                                ))}
+                              </List>
+                            </Paper>
+                          )}
+                        </Box>
                         <Button
                           variant="contained"
                           onClick={handleAddComment}
