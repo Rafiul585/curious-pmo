@@ -147,7 +147,7 @@ Message format: `"Sprint 'Alpha' changed from On Track → At Risk"`
 
 ---
 
-## [ ] A7 — Frontend: Health Status Filter
+## [x] A7 — Frontend: Health Status Filter
 
 **Files:**
 - `frontend/src/pages/DashboardPage.tsx` — chip row: `All | On Track | At Risk | Behind | Critical`
