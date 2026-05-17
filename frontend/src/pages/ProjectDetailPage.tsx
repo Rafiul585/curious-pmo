@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
@@ -48,6 +49,7 @@ import {
   ArrowBack,
   Assignment,
   Speed,
+  Close,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -59,7 +61,7 @@ import {
   useGetAvailableMembersQuery,
 } from '../api/projectApi';
 import { useListMilestonesQuery, useCreateMilestoneMutation } from '../api/milestoneApi';
-import { useListTasksQuery } from '../api/taskApi';
+import { useListTasksQuery, useBulkUpdateTasksMutation } from '../api/taskApi';
 import { MilestoneManager } from '../components/projects/MilestoneManager';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
 import { HealthBadge } from '../components/feedback/HealthBadge';
@@ -85,6 +87,20 @@ const statusColors: Record<string, 'default' | 'primary' | 'warning' | 'success'
   on_hold: 'warning',
   completed: 'success',
   cancelled: 'error',
+};
+
+const TASK_STATUS_COLORS: Record<string, 'default' | 'primary' | 'warning' | 'success'> = {
+  'To-do': 'default',
+  'In Progress': 'primary',
+  Review: 'warning',
+  Done: 'success',
+};
+
+const TASK_PRIORITY_COLORS: Record<string, string> = {
+  Low: '#4caf50',
+  Medium: '#2196f3',
+  High: '#ff9800',
+  Critical: '#f44336',
 };
 
 export const ProjectDetailPage = () => {
@@ -122,6 +138,28 @@ export const ProjectDetailPage = () => {
   const [addMember] = useAddProjectMemberMutation();
   const [removeMember] = useRemoveProjectMemberMutation();
   const [createMilestone, { isLoading: creatingMilestone }] = useCreateMilestoneMutation();
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+  const [bulkUpdate] = useBulkUpdateTasksMutation();
+
+  const toggleTaskSelection = (taskId: number) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const handleBulkUpdate = async (newStatus: string) => {
+    if (selectedTaskIds.size === 0) return;
+    try {
+      await bulkUpdate({ task_ids: Array.from(selectedTaskIds), status: newStatus }).unwrap();
+      enqueueSnackbar(`${selectedTaskIds.size} task(s) updated to "${newStatus}"`, { variant: 'success' });
+      setSelectedTaskIds(new Set());
+    } catch {
+      enqueueSnackbar('Failed to bulk update tasks', { variant: 'error' });
+    }
+  };
 
   const handleEditOpen = () => {
     if (project) {
@@ -526,6 +564,76 @@ export const ProjectDetailPage = () => {
                   <Typography color="text.secondary">No milestones yet.</Typography>
                 )}
               </Grid>
+
+              {/* Tasks List with bulk selection */}
+              <Grid item xs={12}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography variant="h6" fontWeight={600}>
+                    Tasks
+                    {selectedTaskIds.size > 0 && (
+                      <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                        ({selectedTaskIds.size} selected)
+                      </Typography>
+                    )}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {tasks?.length || 0} total
+                  </Typography>
+                </Stack>
+                {tasks && tasks.length > 0 ? (
+                  <Box>
+                    {tasks.map((task) => (
+                      <Paper
+                        key={task.id}
+                        variant="outlined"
+                        sx={{
+                          mb: 0.5,
+                          px: 2,
+                          py: 1,
+                          cursor: 'pointer',
+                          bgcolor: selectedTaskIds.has(task.id) ? 'action.selected' : 'background.paper',
+                          '&:hover': { bgcolor: selectedTaskIds.has(task.id) ? 'action.selected' : 'action.hover' },
+                        }}
+                        onClick={() => toggleTaskSelection(task.id)}
+                      >
+                        <Stack direction="row" alignItems="center" spacing={1.5}>
+                          <Checkbox
+                            size="small"
+                            checked={selectedTaskIds.has(task.id)}
+                            onChange={() => toggleTaskSelection(task.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <Typography variant="body2" sx={{ flex: 1 }}>
+                            {task.title}
+                          </Typography>
+                          <Stack direction="row" spacing={0.5} flexShrink={0}>
+                            <Chip
+                              label={task.status}
+                              size="small"
+                              color={TASK_STATUS_COLORS[task.status] || 'default'}
+                            />
+                            <Chip
+                              label={task.priority}
+                              size="small"
+                              sx={{
+                                bgcolor: TASK_PRIORITY_COLORS[task.priority] || '#9e9e9e',
+                                color: 'white',
+                                fontSize: '0.65rem',
+                                height: 20,
+                              }}
+                            />
+                            {task.is_blocked && (
+                              <Chip label="Blocked" color="error" size="small" sx={{ fontWeight: 600 }} />
+                            )}
+                          </Stack>
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography color="text.secondary">No tasks in this project yet.</Typography>
+                )}
+              </Grid>
             </Grid>
           </Box>
         </TabPanel>
@@ -699,6 +807,43 @@ export const ProjectDetailPage = () => {
           <Button onClick={() => setMemberDialogOpen(false)}>Cancel</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Bulk action floating bar */}
+      {selectedTaskIds.size > 0 && (
+        <Paper
+          elevation={6}
+          sx={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            px: 3,
+            py: 1.5,
+            zIndex: 1300,
+            borderRadius: 3,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Typography variant="body2" color="text.secondary">
+              {selectedTaskIds.size} task{selectedTaskIds.size > 1 ? 's' : ''} selected
+            </Typography>
+            <Divider orientation="vertical" flexItem />
+            <Button size="small" variant="contained" color="success" onClick={() => handleBulkUpdate('Done')}>
+              Mark Done
+            </Button>
+            <Button size="small" variant="contained" onClick={() => handleBulkUpdate('In Progress')}>
+              In Progress
+            </Button>
+            <Button size="small" variant="outlined" color="warning" onClick={() => handleBulkUpdate('Review')}>
+              Review
+            </Button>
+            <IconButton size="small" onClick={() => setSelectedTaskIds(new Set())}>
+              <Close fontSize="small" />
+            </IconButton>
+          </Stack>
+        </Paper>
+      )}
 
       {/* Add Milestone Dialog */}
       <Dialog open={milestoneDialogOpen} onClose={() => setMilestoneDialogOpen(false)} fullWidth maxWidth="sm">

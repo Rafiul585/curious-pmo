@@ -207,6 +207,11 @@ export const taskApi = api.injectEndpoints({
       query: (id) => ({ url: `/task-dependencies/${id}/`, method: 'DELETE' }),
       invalidatesTags: ['TaskDependency', 'Task', 'Gantt'],
     }),
+
+    bulkUpdateTasks: build.mutation<{ updated: number[]; count: number }, { task_ids: number[]; status: string }>({
+      query: (body) => ({ url: '/tasks/bulk_update/', method: 'POST', body }),
+      invalidatesTags: ['Task', 'Kanban', 'Project', 'Sprint', 'Milestone'],
+    }),
   }),
 });
 
@@ -224,4 +229,5 @@ export const {
   useListTaskDependenciesQuery,
   useCreateTaskDependencyMutation,
   useDeleteTaskDependencyMutation,
+  useBulkUpdateTasksMutation,
 } = taskApi;

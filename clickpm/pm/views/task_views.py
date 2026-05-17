@@ -228,6 +228,55 @@ class TaskViewSet(viewsets.ModelViewSet):
             'activity_logs': serializer.data
         })
 
+    @action(detail=False, methods=['POST'])
+    def bulk_update(self, request):
+        """
+        POST /api/tasks/bulk_update/
+        Body: { "task_ids": [1,2,3], "status": "Done" }
+
+        Updates status on multiple tasks the caller can access.
+        Logs each change via AuditService; health recalculation happens
+        automatically via the post_save signal on Task.
+        """
+        task_ids = request.data.get('task_ids', [])
+        new_status = request.data.get('status')
+
+        valid_statuses = [s[0] for s in Task.STATUS_CHOICES]
+        if not new_status or new_status not in valid_statuses:
+            return Response(
+                {'error': f'status must be one of: {valid_statuses}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not task_ids:
+            return Response(
+                {'error': 'task_ids must be a non-empty list'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        accessible = self.get_queryset().filter(id__in=task_ids)
+        updated_ids = []
+
+        for task in accessible:
+            old_status = task.status
+            if old_status == new_status:
+                continue
+            old_state = AuditService.capture_state(task)
+            task.status = new_status
+            task.save()  # auto-completion + health recalc fired by post_save signal
+            AuditService.log_event(
+                user=request.user,
+                instance=task,
+                action=EventType.TASK_STATUS_CHANGED,
+                old_state=old_state,
+                new_state=AuditService.capture_state(task),
+                reason=f'Bulk update to {new_status}',
+                extra_info={'old_status': old_status, 'new_status': new_status},
+            )
+            updated_ids.append(task.id)
+
+        return Response({'updated': updated_ids, 'count': len(updated_ids)})
+
+
 class TaskDependencyViewSet(viewsets.ModelViewSet):
     queryset = TaskDependency.objects.all()
     permission_classes = [IsAuthenticated]
