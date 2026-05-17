@@ -14,12 +14,12 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
 
 class SprintSerializer(serializers.ModelSerializer):
     completion_percentage = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Sprint
         fields = [
             'id', 'milestone', 'name', 'description', 'start_date', 'end_date',
-            'status', 'completion_percentage', 
+            'status', 'health_status', 'completion_percentage',
             'created_at', 'updated_at'
         ]
     
@@ -35,7 +35,7 @@ class SprintDetailSerializer(serializers.ModelSerializer):
         model = Sprint
         fields = [
             'id', 'milestone', 'milestone_name', 'name', 'description', 'start_date', 'end_date',
-            'status', 'completion_percentage', 'created_at', 'updated_at'
+            'status', 'health_status', 'completion_percentage', 'created_at', 'updated_at'
         ]
 
     def get_completion_percentage(self, obj):
@@ -50,7 +50,7 @@ class MilestoneSerializer(serializers.ModelSerializer):
         model = Milestone
         fields = [
             'id', 'project', 'name', 'description', 'start_date', 'end_date',
-            'status', 'sprints', 'completion_percentage', 
+            'status', 'health_status', 'sprints', 'completion_percentage',
             'created_at', 'updated_at'
         ]
     
@@ -67,7 +67,7 @@ class MilestoneDetailSerializer(serializers.ModelSerializer):
         model = Milestone
         fields = [
             'id', 'project', 'project_name', 'name', 'description', 'start_date', 'end_date',
-            'status', 'sprints', 'completion_percentage', 'created_at', 'updated_at'
+            'status', 'health_status', 'sprints', 'completion_percentage', 'created_at', 'updated_at'
         ]
 
     def get_completion_percentage(self, obj):
@@ -84,7 +84,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         model = Project
         fields = [
             'id', 'name', 'description', 'start_date', 'end_date',
-            'status', 'workspace', 'workspace_name', 'members', 'milestones',
+            'status', 'health_status', 'workspace', 'workspace_name', 'members', 'milestones',
             'tags', 'archived', 'completion_percentage', 'created_at', 'updated_at'
         ]
     
@@ -101,7 +101,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         model = Project
         fields = [
             'id', 'name', 'description', 'start_date', 'end_date',
-            'status', 'workspace', 'workspace_name', 'members', 'milestones',
+            'status', 'health_status', 'workspace', 'workspace_name', 'members', 'milestones',
             'tags', 'archived', 'created_at', 'updated_at'
         ]
 
@@ -111,7 +111,7 @@ class ProjectCreateUpdateSerializer(serializers.ModelSerializer):
         model = Project
         fields = [
             'id', 'name', 'description', 'start_date', 'end_date',
-            'status', 'workspace', 'tags', 'archived', 'visibility'
+            'status', 'health_status', 'workspace', 'tags', 'archived', 'visibility'
         ]
         read_only_fields = ['id']
 
@@ -119,13 +119,13 @@ class ProjectCreateUpdateSerializer(serializers.ModelSerializer):
 class MilestoneCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Milestone
-        fields = ['id', 'project', 'name', 'description', 'start_date', 'end_date', 'status']
+        fields = ['id', 'project', 'name', 'description', 'start_date', 'end_date', 'status', 'health_status']
         read_only_fields = ['id']
 
 
 class SprintCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sprint
-        fields = ['id', 'milestone', 'name', 'description', 'start_date', 'end_date', 'status']
+        fields = ['id', 'milestone', 'name', 'description', 'start_date', 'end_date', 'status', 'health_status']
         read_only_fields = ['id']
 
