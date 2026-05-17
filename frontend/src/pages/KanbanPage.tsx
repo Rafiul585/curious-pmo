@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -28,7 +28,7 @@ import {
   KanbanTask,
   KanbanColumn,
 } from '../api/kanbanApi';
-import { useChangeTaskStatusMutation, useCreateTaskMutation } from '../api/taskApi';
+import { useChangeTaskStatusMutation, useCreateTaskMutation, useReorderTasksMutation } from '../api/taskApi';
 import { useSnackbar } from 'notistack';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -50,9 +50,10 @@ let currentDraggedTaskId: number | null = null;
 
 interface TaskCardProps {
   task: KanbanTask;
+  onDragEnterTask?: () => void;
 }
 
-const TaskCard = ({ task }: TaskCardProps) => {
+const TaskCard = ({ task, onDragEnterTask }: TaskCardProps) => {
   const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'Done';
 
   return (
@@ -60,14 +61,16 @@ const TaskCard = ({ task }: TaskCardProps) => {
       draggable="true"
       data-task-id={task.id}
       onDragStart={(e: React.DragEvent<HTMLDivElement>) => {
-        // Set module-level variable as primary source
         currentDraggedTaskId = task.id;
-        // Also set dataTransfer as backup
         e.dataTransfer.setData('text/plain', String(task.id));
         e.dataTransfer.effectAllowed = 'move';
       }}
       onDragEnd={() => {
         currentDraggedTaskId = null;
+      }}
+      onDragEnter={(e) => {
+        e.stopPropagation();
+        onDragEnterTask?.();
       }}
       style={{ marginBottom: 8, cursor: 'grab' }}
     >
@@ -148,10 +151,12 @@ const TaskCard = ({ task }: TaskCardProps) => {
 
 interface KanbanColumnProps {
   column: KanbanColumn;
+  tasks: KanbanTask[];
   onDrop: (taskId: number, newStatus: string) => void;
   isDragOver: boolean;
   onDragEnter: () => void;
   onDragLeave: () => void;
+  onTaskDragEnter: (taskId: number) => void;
   isAddingTask: boolean;
   addingTitle: string;
   onAddTaskClick: () => void;
@@ -161,7 +166,7 @@ interface KanbanColumnProps {
 }
 
 const KanbanColumnComponent = ({
-  column, onDrop, isDragOver, onDragEnter, onDragLeave,
+  column, tasks, onDrop, isDragOver, onDragEnter, onDragLeave, onTaskDragEnter,
   isAddingTask, addingTitle, onAddTaskClick, onAddTaskTitleChange, onAddTaskSave, onAddTaskCancel,
 }: KanbanColumnProps) => {
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -227,12 +232,18 @@ const KanbanColumnComponent = ({
         </Stack>
       </Box>
       <Box sx={{ p: 1, overflow: 'auto', flex: 1 }}>
-        {column.tasks.length === 0 ? (
+        {tasks.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
             No tasks
           </Typography>
         ) : (
-          column.tasks.map((task) => <TaskCard key={task.id} task={task} />)
+          tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onDragEnterTask={() => onTaskDragEnter(task.id)}
+            />
+          ))
         )}
 
         {/* Inline add-task row */}
@@ -281,6 +292,8 @@ export const KanbanPage = () => {
   const [viewMode, setViewMode] = useState<'my' | 'project'>('my');
   const [selectedProject, setSelectedProject] = useState<number | ''>('');
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [dragOverTaskId, setDragOverTaskId] = useState<number | null>(null);
+  const [optimisticColumns, setOptimisticColumns] = useState<Record<string, KanbanTask[]>>({});
   const [activeColumnInput, setActiveColumnInput] = useState<string | null>(null);
   const [inlineTitle, setInlineTitle] = useState('');
   const { enqueueSnackbar } = useSnackbar();
@@ -297,6 +310,7 @@ export const KanbanPage = () => {
 
   const [changeStatus] = useChangeTaskStatusMutation();
   const [createTask] = useCreateTaskMutation();
+  const [reorderTasks] = useReorderTasksMutation();
 
   const kanbanData = viewMode === 'my' ? myKanban : projectKanban;
   const isLoading = viewMode === 'my' ? loadingMyKanban : loadingProjectKanban;
@@ -306,21 +320,52 @@ export const KanbanPage = () => {
     ? kanbanData?.columns.flatMap((c) => c.tasks).find((t) => t.sprint)?.sprint.id
     : undefined;
 
-  const handleTaskDrop = async (taskId: number, newStatus: string) => {
-    // Find current task to check if status actually changed
-    const currentTask = kanbanData?.columns
-      .flatMap((col) => col.tasks)
-      .find((t) => t.id === taskId);
+  // Clear optimistic overrides whenever server data refreshes
+  useEffect(() => {
+    setOptimisticColumns({});
+  }, [kanbanData]);
 
-    if (currentTask && currentTask.status !== newStatus) {
+  const handleTaskDrop = async (taskId: number, newStatus: string) => {
+    const allTasks = kanbanData?.columns.flatMap((col) =>
+      optimisticColumns[col.id] ?? col.tasks
+    );
+    const currentTask = allTasks?.find((t) => t.id === taskId);
+    if (!currentTask) { setDragOverColumn(null); setDragOverTaskId(null); return; }
+
+    if (currentTask.status === newStatus) {
+      // Same-column reorder
+      const column = kanbanData!.columns.find((c) => c.status === newStatus)!;
+      const currentColTasks = optimisticColumns[column.id] ?? column.tasks;
+      const without = currentColTasks.filter((t) => t.id !== taskId);
+      const insertAt = dragOverTaskId && dragOverTaskId !== taskId
+        ? without.findIndex((t) => t.id === dragOverTaskId)
+        : -1;
+      const idx = insertAt === -1 ? without.length : insertAt;
+      const reordered = [...without.slice(0, idx), currentTask, ...without.slice(idx)];
+
+      setOptimisticColumns((prev) => ({ ...prev, [column.id]: reordered }));
+
       try {
-        // Use 'id' instead of 'taskId' to match taskApi.ts parameter name
+        await reorderTasks({ task_ids: reordered.map((t) => t.id) }).unwrap();
+      } catch {
+        // Revert optimistic state on failure
+        setOptimisticColumns((prev) => {
+          const next = { ...prev };
+          delete next[column.id];
+          return next;
+        });
+      }
+    } else {
+      // Cross-column: change status
+      try {
         await changeStatus({ id: taskId, status: newStatus }).unwrap();
       } catch (error) {
         console.error('Failed to update task status:', error);
       }
     }
+
     setDragOverColumn(null);
+    setDragOverTaskId(null);
   };
 
   const handleAddTaskSave = async (columnStatus: string) => {
@@ -398,10 +443,12 @@ export const KanbanPage = () => {
                 <KanbanColumnComponent
                   key={column.id}
                   column={column}
+                  tasks={optimisticColumns[column.id] ?? column.tasks}
                   onDrop={handleTaskDrop}
                   isDragOver={dragOverColumn === column.id}
                   onDragEnter={() => setDragOverColumn(column.id)}
                   onDragLeave={() => setDragOverColumn(null)}
+                  onTaskDragEnter={(taskId) => setDragOverTaskId(taskId)}
                   isAddingTask={activeColumnInput === column.id}
                   addingTitle={inlineTitle}
                   onAddTaskClick={() => { setInlineTitle(''); setActiveColumnInput(column.id); }}

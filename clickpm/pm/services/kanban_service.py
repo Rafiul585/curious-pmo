@@ -60,7 +60,7 @@ def get_kanban_for_sprint(sprint_id):
 
     columns = []
     for col in KANBAN_COLUMNS:
-        column_tasks = tasks.filter(status=col['status']).order_by('due_date', '-priority', 'created_at')
+        column_tasks = tasks.filter(status=col['status']).order_by('position', 'due_date', '-priority', 'created_at')
         columns.append({
             'id': col['id'],
             'name': col['name'],
@@ -105,7 +105,7 @@ def get_kanban_for_project(project_id):
 
     columns = []
     for col in KANBAN_COLUMNS:
-        column_tasks = tasks.filter(status=col['status']).order_by('due_date', '-priority', 'created_at')
+        column_tasks = tasks.filter(status=col['status']).order_by('position', 'due_date', '-priority', 'created_at')
         columns.append({
             'id': col['id'],
             'name': col['name'],
@@ -138,7 +138,7 @@ def get_kanban_for_user(user, project_id=None):
 
     columns = []
     for col in KANBAN_COLUMNS:
-        column_tasks = tasks.filter(status=col['status']).order_by('due_date', '-priority', 'created_at')
+        column_tasks = tasks.filter(status=col['status']).order_by('position', 'due_date', '-priority', 'created_at')
         columns.append({
             'id': col['id'],
             'name': col['name'],

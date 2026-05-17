@@ -212,6 +212,11 @@ export const taskApi = api.injectEndpoints({
       query: (body) => ({ url: '/tasks/bulk_update/', method: 'POST', body }),
       invalidatesTags: ['Task', 'Kanban', 'Project', 'Sprint', 'Milestone'],
     }),
+
+    reorderTasks: build.mutation<{ reordered: number }, { task_ids: number[] }>({
+      query: (body) => ({ url: '/tasks/reorder/', method: 'POST', body }),
+      invalidatesTags: ['Kanban'],
+    }),
   }),
 });
 
@@ -230,4 +235,5 @@ export const {
   useCreateTaskDependencyMutation,
   useDeleteTaskDependencyMutation,
   useBulkUpdateTasksMutation,
+  useReorderTasksMutation,
 } = taskApi;

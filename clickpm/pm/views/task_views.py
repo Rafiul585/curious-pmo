@@ -276,6 +276,31 @@ class TaskViewSet(viewsets.ModelViewSet):
 
         return Response({'updated': updated_ids, 'count': len(updated_ids)})
 
+    @action(detail=False, methods=['POST'])
+    def reorder(self, request):
+        """
+        POST /api/tasks/reorder/
+        Body: { "task_ids": [3, 1, 2] }
+        Assigns position=0,1,2,... in the given order.
+        Uses update() to avoid triggering auto-completion signals.
+        """
+        task_ids = request.data.get('task_ids', [])
+        if not task_ids:
+            return Response(
+                {'error': 'task_ids must be a non-empty list'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        accessible_ids = set(
+            self.get_queryset().filter(id__in=task_ids).values_list('id', flat=True)
+        )
+
+        for position, task_id in enumerate(task_ids):
+            if task_id in accessible_ids:
+                Task.objects.filter(id=task_id).update(position=position)
+
+        return Response({'reordered': len(accessible_ids)})
+
 
 class TaskDependencyViewSet(viewsets.ModelViewSet):
     queryset = TaskDependency.objects.all()
