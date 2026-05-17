@@ -62,6 +62,7 @@ import { useListMilestonesQuery, useCreateMilestoneMutation } from '../api/miles
 import { useListTasksQuery } from '../api/taskApi';
 import { MilestoneManager } from '../components/projects/MilestoneManager';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
+import { HealthBadge } from '../components/feedback/HealthBadge';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -244,6 +245,7 @@ export const ProjectDetailPage = () => {
                 variant="outlined"
                 size="small"
               />
+              <HealthBadge status={project.health_status} />
             </Stack>
             {project.description && (
               <Typography color="text.secondary" sx={{ mb: 2, maxWidth: 600 }}>
@@ -445,11 +447,14 @@ export const ProjectDetailPage = () => {
                                 <Typography variant="subtitle1" fontWeight={600} noWrap sx={{ flex: 1, pr: 1 }}>
                                   {milestone.name}
                                 </Typography>
-                                <Chip
-                                  label={milestone.status}
-                                  color={statusColors[milestone.status] || 'default'}
-                                  size="small"
-                                />
+                                <Stack direction="row" spacing={0.5}>
+                                  <Chip
+                                    label={milestone.status}
+                                    color={statusColors[milestone.status] || 'default'}
+                                    size="small"
+                                  />
+                                  <HealthBadge status={milestone.health_status} />
+                                </Stack>
                               </Stack>
                               {milestone.description && (
                                 <Typography

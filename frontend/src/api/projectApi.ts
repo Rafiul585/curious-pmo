@@ -21,6 +21,7 @@ export interface Project {
   name: string;
   description?: string;
   status: 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled';
+  health_status?: 'on_track' | 'at_risk' | 'behind' | 'critical' | null;
   visibility: 'public' | 'private';
   start_date?: string;
   end_date?: string;
@@ -45,6 +46,7 @@ export interface ProjectDetail extends Project {
     id: number;
     name: string;
     status: string;
+    health_status?: 'on_track' | 'at_risk' | 'behind' | 'critical' | null;
     start_date?: string;
     end_date?: string;
   }[];
