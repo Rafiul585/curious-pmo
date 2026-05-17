@@ -6,12 +6,13 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
 
-from pm.models.task_models import Task, TaskDependency
+from pm.models.task_models import Task, TaskDependency, TimeLog
 from pm.models.project_models import Project
 from pm.models.workspace_models import WorkspaceMember
 from pm.serializers.task_serializers import (
     TaskSerializer, TaskDetailSerializer, TaskCreateUpdateSerializer,
-    TaskDependencySerializer, TaskDependencyCreateUpdateSerializer
+    TaskDependencySerializer, TaskDependencyCreateUpdateSerializer,
+    TimeLogSerializer,
 )
 from pm.permissions import IsTaskAssignee, CanViewProject
 from pm.services.audit_service import AuditService, EventType
@@ -300,6 +301,36 @@ class TaskViewSet(viewsets.ModelViewSet):
                 Task.objects.filter(id=task_id).update(position=position)
 
         return Response({'reordered': len(accessible_ids)})
+
+    @action(detail=True, methods=['GET'])
+    def time_logs(self, request, pk=None):
+        """GET /api/tasks/{id}/time_logs/ — list all time logs for this task."""
+        task = self.get_object()
+        logs = task.time_logs.select_related('user').order_by('-date', '-created_at')
+        serializer = TimeLogSerializer(logs, many=True)
+        return Response(serializer.data)
+
+
+class TimeLogViewSet(viewsets.ModelViewSet):
+    """
+    POST /api/time-logs/  — log hours against a task.
+    Body: { "task": <id>, "hours": 1.5, "date": "2026-05-17", "note": "..." }
+    Creating a log automatically updates task.actual_hours via TimeLog.save().
+    """
+    serializer_class = TimeLogSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['task', 'user']
+    ordering_fields = ['date', 'created_at']
+    ordering = ['-date']
+
+    def get_queryset(self):
+        return TimeLog.objects.filter(user=self.request.user).select_related('user', 'task')
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
 
 class TaskDependencyViewSet(viewsets.ModelViewSet):

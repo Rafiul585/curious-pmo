@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Sum
 from .user_models import User
 from .project_models import Sprint
 
@@ -38,6 +39,9 @@ class Task(models.Model):
     start_date = models.DateField(null=True, blank=True)
     due_date = models.DateField(null=True, blank=True)
 
+    estimated_hours = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    actual_hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+
     position = models.PositiveIntegerField(default=0, db_index=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -66,6 +70,40 @@ class Task(models.Model):
         if old_status != 'Done' and self.status == 'Done':
             from pm.services.auto_completion import auto_complete_on_task_done
             auto_complete_on_task_done(self)
+
+# ----------------------------
+# Time Log Model
+# ----------------------------
+class TimeLog(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='time_logs')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='time_logs')
+    hours = models.DecimalField(max_digits=5, decimal_places=2)
+    date = models.DateField()
+    note = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Keep task.actual_hours in sync with sum of all logs
+        total = TimeLog.objects.filter(task=self.task).aggregate(
+            total=models.Sum('hours')
+        )['total'] or 0
+        Task.objects.filter(pk=self.task_id).update(actual_hours=total)
+
+    def delete(self, *args, **kwargs):
+        task_id = self.task_id
+        super().delete(*args, **kwargs)
+        total = TimeLog.objects.filter(task_id=task_id).aggregate(
+            total=models.Sum('hours')
+        )['total'] or 0
+        Task.objects.filter(pk=task_id).update(actual_hours=total)
+
+    def __str__(self):
+        return f"{self.user.username} logged {self.hours}h on {self.task.title}"
+
 
 # ----------------------------
 # Task Dependency Model

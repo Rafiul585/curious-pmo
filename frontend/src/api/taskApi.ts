@@ -30,9 +30,22 @@ export interface Task {
   reporter_details?: TaskUser;
   due_date?: string;
   start_date?: string;
+  estimated_hours?: number | null;
+  actual_hours?: number;
   is_blocked?: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface TimeLog {
+  id: number;
+  task: number;
+  user: number;
+  user_username: string;
+  hours: number;
+  date: string;
+  note: string;
+  created_at: string;
 }
 
 export interface TaskDetail extends Task {
@@ -70,7 +83,8 @@ export interface CreateTaskData {
   reporter?: number;
   due_date?: string;
   start_date?: string;
-  estimated_hours?: number;
+  estimated_hours?: number | null;
+  actual_hours?: number;
 }
 
 export const taskApi = api.injectEndpoints({
@@ -208,6 +222,20 @@ export const taskApi = api.injectEndpoints({
       invalidatesTags: ['TaskDependency', 'Task', 'Gantt'],
     }),
 
+    getTaskTimeLogs: build.query<TimeLog[], number>({
+      query: (taskId) => ({ url: `/tasks/${taskId}/time_logs/` }),
+      providesTags: (_result, _error, taskId) => [{ type: 'TimeLog' as const, id: taskId }],
+    }),
+
+    logTime: build.mutation<TimeLog, { task: number; hours: number; date: string; note?: string }>({
+      query: (body) => ({ url: '/time-logs/', method: 'POST', body }),
+      invalidatesTags: (_result, _error, { task }) => [
+        { type: 'TimeLog', id: task },
+        { type: 'Task', id: task },
+        'Task',
+      ],
+    }),
+
     bulkUpdateTasks: build.mutation<{ updated: number[]; count: number }, { task_ids: number[]; status: string }>({
       query: (body) => ({ url: '/tasks/bulk_update/', method: 'POST', body }),
       invalidatesTags: ['Task', 'Kanban', 'Project', 'Sprint', 'Milestone'],
@@ -236,4 +264,6 @@ export const {
   useDeleteTaskDependencyMutation,
   useBulkUpdateTasksMutation,
   useReorderTasksMutation,
+  useGetTaskTimeLogsQuery,
+  useLogTimeMutation,
 } = taskApi;

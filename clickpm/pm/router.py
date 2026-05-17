@@ -4,7 +4,7 @@ from pm.views.user_views import UserViewSet
 # from pm.views.user_views import UserViewSet, RegisterView, LoginView, LogoutView, RefreshTokenView, ChangePasswordView
 from pm.views.role_views import RoleViewSet
 from pm.views.project_views import ProjectViewSet, MilestoneViewSet, SprintViewSet
-from pm.views.task_views import TaskViewSet, TaskDependencyViewSet
+from pm.views.task_views import TaskViewSet, TaskDependencyViewSet, TimeLogViewSet
 from pm.views.comment_views import CommentViewSet
 from pm.views.attachment_views import AttachmentViewSet
 from pm.views.activity_views import ActivityLogViewSet
@@ -30,6 +30,7 @@ router.register(r'sprints', SprintViewSet, basename='sprint')
 # Tasks
 router.register(r'tasks', TaskViewSet, basename='task')
 router.register(r'task-dependencies', TaskDependencyViewSet, basename='task-dependency')
+router.register(r'time-logs', TimeLogViewSet, basename='time-log')
 
 # Notifications
 router.register(r'notifications', NotificationViewSet, basename='notification')

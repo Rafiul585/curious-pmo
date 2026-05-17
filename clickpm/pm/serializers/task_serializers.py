@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from pm.models.task_models import Task, TaskDependency
+from pm.models.task_models import Task, TaskDependency, TimeLog
 from pm.serializers.user_serializers import UserMinimalSerializer
 
 
@@ -24,7 +24,8 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'sprint', 'sprint_name', 'title', 'description', 'assignee', 'assignee_details',
             'reporter', 'reporter_details', 'status', 'priority', 'start_date',
-            'due_date', 'dependencies', 'is_blocked', 'created_at', 'updated_at'
+            'due_date', 'estimated_hours', 'actual_hours',
+            'dependencies', 'is_blocked', 'created_at', 'updated_at'
         ]
 
     def get_is_blocked(self, obj) -> bool:
@@ -49,6 +50,7 @@ class TaskDetailSerializer(serializers.ModelSerializer):
             'id', 'sprint', 'sprint_name', 'sprint_details', 'title', 'description',
             'assignee', 'assignee_details', 'reporter', 'reporter_details',
             'status', 'priority', 'start_date', 'due_date',
+            'estimated_hours', 'actual_hours',
             'dependencies', 'is_blocked', 'created_at', 'updated_at'
         ]
 
@@ -82,9 +84,18 @@ class TaskCreateUpdateSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'sprint', 'title', 'description', 'assignee', 'reporter',
-            'status', 'priority', 'start_date', 'due_date'
+            'status', 'priority', 'start_date', 'due_date', 'estimated_hours', 'actual_hours'
         ]
         read_only_fields = ['id']
+
+
+class TimeLogSerializer(serializers.ModelSerializer):
+    user_username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = TimeLog
+        fields = ['id', 'task', 'user', 'user_username', 'hours', 'date', 'note', 'created_at']
+        read_only_fields = ['id', 'user', 'user_username', 'created_at']
 
 
 class TaskDependencyCreateUpdateSerializer(serializers.ModelSerializer):

@@ -54,6 +54,8 @@ import {
   useDeleteTaskMutation,
   useAssignTaskToMeMutation,
   useGetTaskActivityLogsQuery,
+  useGetTaskTimeLogsQuery,
+  useLogTimeMutation,
 } from '../../api/taskApi';
 import { useGetTaskCommentsQuery, useCreateCommentMutation } from '../../api/commentApi';
 import { useGetProjectQuery } from '../../api/projectApi';
@@ -113,12 +115,17 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
     { skip: !taskId }
   );
   const { data: attachments, isLoading: loadingAttachments } = useGetTaskAttachmentsQuery(taskId!, { skip: !taskId });
+  const { data: timeLogs } = useGetTaskTimeLogsQuery(taskId!, { skip: !taskId });
   const [updateTask, { isLoading: updating }] = useUpdateTaskMutation();
   const [deleteTask, { isLoading: deleting }] = useDeleteTaskMutation();
   const [assignToMe] = useAssignTaskToMeMutation();
   const [createComment, { isLoading: commenting }] = useCreateCommentMutation();
+  const [logTime, { isLoading: loggingTime }] = useLogTimeMutation();
   const [uploadAttachment, { isLoading: uploading }] = useUploadAttachmentMutation();
   const [deleteAttachment] = useDeleteAttachmentMutation();
+
+  const [logHours, setLogHours] = useState('');
+  const [logNote, setLogNote] = useState('');
 
   useEffect(() => {
     if (task) {
@@ -215,6 +222,24 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const mentionMembers = projectMembers
     .filter((m) => !mentionQuery || m.user.username.toLowerCase().startsWith(mentionQuery.toLowerCase()))
     .slice(0, 6);
+
+  const handleLogTime = async () => {
+    const hours = parseFloat(logHours);
+    if (!taskId || isNaN(hours) || hours <= 0) return;
+    try {
+      await logTime({
+        task: taskId,
+        hours,
+        date: new Date().toISOString().slice(0, 10),
+        note: logNote.trim(),
+      }).unwrap();
+      setLogHours('');
+      setLogNote('');
+      enqueueSnackbar(`${hours}h logged`, { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to log time', { variant: 'error' });
+    }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -777,6 +802,104 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                           ? new Date(task.created_at).toLocaleString()
                           : 'Unknown'}
                       </Typography>
+                    </Box>
+
+                    <Divider />
+
+                    {/* Time Tracking */}
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                        Time Tracking
+                      </Typography>
+
+                      {/* Progress bar: actual / estimated */}
+                      {task.estimated_hours != null && (
+                        <Box sx={{ mt: 1 }}>
+                          <Stack direction="row" justifyContent="space-between">
+                            <Typography variant="caption" color="text.secondary">
+                              {Number(task.actual_hours ?? 0).toFixed(1)}h logged
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {Number(task.estimated_hours).toFixed(1)}h estimated
+                            </Typography>
+                          </Stack>
+                          <LinearProgress
+                            variant="determinate"
+                            value={Math.min(
+                              100,
+                              (Number(task.actual_hours ?? 0) / Number(task.estimated_hours)) * 100
+                            )}
+                            color={
+                              Number(task.actual_hours ?? 0) > Number(task.estimated_hours)
+                                ? 'error'
+                                : 'primary'
+                            }
+                            sx={{ mt: 0.5, borderRadius: 1, height: 6 }}
+                          />
+                        </Box>
+                      )}
+
+                      {task.estimated_hours == null && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          {Number(task.actual_hours ?? 0).toFixed(1)}h logged
+                        </Typography>
+                      )}
+
+                      {/* Log time input */}
+                      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                        <TextField
+                          size="small"
+                          type="number"
+                          placeholder="Hours"
+                          value={logHours}
+                          onChange={(e) => setLogHours(e.target.value)}
+                          inputProps={{ min: 0.1, step: 0.25 }}
+                          sx={{ width: 90 }}
+                        />
+                        <TextField
+                          size="small"
+                          placeholder="Note (optional)"
+                          value={logNote}
+                          onChange={(e) => setLogNote(e.target.value)}
+                          sx={{ flex: 1 }}
+                        />
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={handleLogTime}
+                          disabled={loggingTime || !logHours || Number(logHours) <= 0}
+                        >
+                          Log
+                        </Button>
+                      </Stack>
+
+                      {/* Recent logs */}
+                      {timeLogs && timeLogs.length > 0 && (
+                        <Stack spacing={0.5} sx={{ mt: 1, maxHeight: 120, overflow: 'auto' }}>
+                          {timeLogs.slice(0, 5).map((log) => (
+                            <Stack
+                              key={log.id}
+                              direction="row"
+                              justifyContent="space-between"
+                              alignItems="center"
+                              sx={{
+                                px: 1,
+                                py: 0.5,
+                                borderRadius: 1,
+                                bgcolor: (theme) => alpha(theme.palette.grey[500], 0.07),
+                              }}
+                            >
+                              <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>
+                                {log.user_username}
+                                {log.note ? ` — ${log.note}` : ''}
+                              </Typography>
+                              <Typography variant="caption" fontWeight={600} sx={{ ml: 1, whiteSpace: 'nowrap' }}>
+                                {Number(log.hours).toFixed(1)}h · {log.date}
+                              </Typography>
+                            </Stack>
+                          ))}
+                        </Stack>
+                      )}
                     </Box>
                   </Stack>
                 </Grid>
