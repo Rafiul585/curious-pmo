@@ -29,7 +29,7 @@ This file is the single source of truth for all planned work. Each step is self-
 
 ---
 
-## [ ] A1 — Health Status Field on Models
+## [x] A1 — Health Status Field on Models
 
 **Goal:** Add `health_status` to Project, Milestone, and Sprint.
 
@@ -56,7 +56,7 @@ cd clickpm && python manage.py makemigrations && python manage.py migrate
 
 ---
 
-## [ ] A2 — Health Calculation Service
+## [x] A2 — Health Calculation Service
 
 **File to create:** `clickpm/pm/services/health_service.py`
 
@@ -86,7 +86,7 @@ def refresh_project_tree_health(project) -> None: ...
 
 ---
 
-## [ ] A3 — Auto-Refresh Health via Signal
+## [x] A3 — Auto-Refresh Health via Signal
 
 **File:** `clickpm/pm/signals.py` (create if needed)
 ```python
@@ -103,7 +103,7 @@ def task_saved(sender, instance, **kwargs):
 
 ---
 
-## [ ] A4 — Expose health_status in Serializers & API
+## [x] A4 — Expose health_status in Serializers & API
 
 **File:** `clickpm/pm/serializers/project_serializers.py`
 - Add `health_status` to `ProjectSerializer`, `MilestoneSerializer`, `SprintSerializer`
@@ -113,7 +113,7 @@ def task_saved(sender, instance, **kwargs):
 
 ---
 
-## [ ] A5 — Health Degradation Notifications
+## [x] A5 — Health Degradation Notifications
 
 **Files:**
 - `clickpm/pm/models/notification_models.py` → add `'health_degradation'` to choices
@@ -279,7 +279,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B6 — Dark Mode Toggle in Navbar
+## [x] B6 — Dark Mode Toggle in Navbar
 
 **File:** `frontend/src/components/layout/MainLayout.tsx`
 - Add sun/moon `<IconButton>` next to notification bell
