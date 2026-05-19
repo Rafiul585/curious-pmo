@@ -23,7 +23,7 @@ from pm.services.notification_service import NotificationService
 class TaskViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsTaskAssignee | CanViewProject]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['status', 'priority', 'assignee', 'reporter', 'sprint', 'parent']
+    filterset_fields = ['status', 'priority', 'assignee', 'reporter', 'sprint', 'parent', 'tags']
     search_fields = ['title', 'description']
     ordering_fields = ['due_date', 'start_date', 'priority']
     ordering = ['-id']
@@ -164,6 +164,36 @@ class TaskViewSet(viewsets.ModelViewSet):
         tasks = Task.objects.filter(assignee=request.user)
         serializer = TaskSerializer(tasks, many=True, context={'request': request})
         return Response(serializer.data)
+
+    @action(detail=True, methods=['POST'])
+    def add_tag(self, request, pk=None):
+        """POST /api/tasks/{id}/add_tag/ — body: {tag_id: N}"""
+        from pm.models.workspace_models import Tag
+        task = self.get_object()
+        tag_id = request.data.get('tag_id')
+        if not tag_id:
+            return Response({'error': 'tag_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            tag = Tag.objects.get(id=tag_id)
+        except Tag.DoesNotExist:
+            return Response({'error': 'Tag not found'}, status=status.HTTP_404_NOT_FOUND)
+        task.tags.add(tag)
+        return Response({'status': 'tag added'})
+
+    @action(detail=True, methods=['POST'])
+    def remove_tag(self, request, pk=None):
+        """POST /api/tasks/{id}/remove_tag/ — body: {tag_id: N}"""
+        from pm.models.workspace_models import Tag
+        task = self.get_object()
+        tag_id = request.data.get('tag_id')
+        if not tag_id:
+            return Response({'error': 'tag_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            tag = Tag.objects.get(id=tag_id)
+        except Tag.DoesNotExist:
+            return Response({'error': 'Tag not found'}, status=status.HTTP_404_NOT_FOUND)
+        task.tags.remove(tag)
+        return Response({'status': 'tag removed'})
 
     @action(detail=False, methods=['GET'])
     def reported_by_me(self, request):

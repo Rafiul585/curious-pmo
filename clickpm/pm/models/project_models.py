@@ -1,7 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from .user_models import User, Role
-from .workspace_models import Workspace
+from .workspace_models import Workspace, Tag
 
 HEALTH_STATUS_CHOICES = [
     ('on_track', 'On Track'),
@@ -21,7 +21,7 @@ class Project(models.Model):
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name='projects')
     visibility = models.CharField(max_length=20, choices=[('public', 'Public'), ('private', 'Private')], default='private')
     members = models.ManyToManyField(User, through='ProjectMember', related_name='projects')
-    tags = models.CharField(max_length=200, blank=True, null=True)
+    tags = models.ManyToManyField(Tag, blank=True, related_name='projects')
     archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -45,6 +45,22 @@ class Project(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+# Custom task statuses per project
+class ProjectStatus(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='custom_statuses')
+    name = models.CharField(max_length=100)
+    color = models.CharField(max_length=7, default='#6B7280')
+    order = models.PositiveIntegerField(default=0)
+    is_done_state = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['order', 'id']
+        unique_together = ('project', 'name')
+
+    def __str__(self):
+        return f"{self.project.name} — {self.name}"
 
 
 # Project membership

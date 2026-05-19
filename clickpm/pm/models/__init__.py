@@ -1,7 +1,7 @@
 from .user_models import User, Role
-from .project_models import Project, ProjectMember, Milestone, Sprint
+from .project_models import Project, ProjectMember, ProjectStatus, Milestone, Sprint
 from .task_models import Task, TaskDependency, TimeLog, Checklist, ChecklistItem
-from .workspace_models import Workspace, WorkspaceMember
+from .workspace_models import Workspace, WorkspaceMember, Tag
 from .comment_models import Comment
 from .attachment_models import Attachment
 from .activity_models import ActivityLog

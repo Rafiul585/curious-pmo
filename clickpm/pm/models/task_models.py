@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models import Sum
 from .user_models import User
 from .project_models import Sprint
+from .workspace_models import Tag
 
 # ----------------------------
 # Task Model
@@ -48,6 +49,8 @@ class Task(models.Model):
 
     estimated_hours = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     actual_hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+
+    tags = models.ManyToManyField(Tag, blank=True, related_name='tasks')
 
     position = models.PositiveIntegerField(default=0, db_index=True)
 

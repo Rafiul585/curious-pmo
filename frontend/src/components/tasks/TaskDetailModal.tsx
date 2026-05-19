@@ -80,6 +80,7 @@ import {
   useDeleteChecklistItemMutation,
 } from '../../api/checklistApi';
 import { useGetProjectQuery } from '../../api/projectApi';
+import { useListTagsQuery, useAddTagToTaskMutation, useRemoveTagFromTaskMutation, useCreateTagMutation } from '../../api/tagApi';
 import { useGetTaskAttachmentsQuery, useUploadAttachmentMutation, useDeleteAttachmentMutation } from '../../api/attachmentApi';
 
 interface TaskDetailModalProps {
@@ -153,6 +154,18 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const [createChecklistItem] = useCreateChecklistItemMutation();
   const [updateChecklistItem] = useUpdateChecklistItemMutation();
   const [deleteChecklistItem] = useDeleteChecklistItemMutation();
+
+  const workspaceId = project?.workspace as number | undefined;
+  const { data: workspaceTags } = useListTagsQuery(
+    workspaceId ? { workspace: workspaceId } : undefined,
+    { skip: !workspaceId }
+  );
+  const [addTagToTask] = useAddTagToTaskMutation();
+  const [removeTagFromTask] = useRemoveTagFromTaskMutation();
+  const [createTag] = useCreateTagMutation();
+  const [tagMenuAnchor, setTagMenuAnchor] = useState<null | HTMLElement>(null);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#6B7280');
 
   const [logHours, setLogHours] = useState('');
   const [logNote, setLogNote] = useState('');
@@ -1144,6 +1157,118 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                           </Typography>
                         </Stack>
                       )}
+                    </Box>
+
+                    {/* Tags */}
+                    <Box>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between">
+                        <Typography variant="caption" color="text.secondary">Tags</Typography>
+                        <Tooltip title="Add tag">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => setTagMenuAnchor(e.currentTarget)}
+                          >
+                            <Add fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 0.5, gap: 0.5 }}>
+                        {task.tags_details && task.tags_details.length > 0 ? (
+                          task.tags_details.map((tag) => (
+                            <Chip
+                              key={tag.id}
+                              label={tag.name}
+                              size="small"
+                              onDelete={async () => {
+                                try {
+                                  await removeTagFromTask({ taskId: taskId!, tagId: tag.id }).unwrap();
+                                } catch {
+                                  enqueueSnackbar('Failed to remove tag', { variant: 'error' });
+                                }
+                              }}
+                              sx={{
+                                bgcolor: tag.color,
+                                color: 'white',
+                                '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.7)', '&:hover': { color: 'white' } },
+                                fontSize: '0.65rem',
+                                height: 20,
+                              }}
+                            />
+                          ))
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">None</Typography>
+                        )}
+                      </Stack>
+                      <Menu
+                        anchorEl={tagMenuAnchor}
+                        open={Boolean(tagMenuAnchor)}
+                        onClose={() => { setTagMenuAnchor(null); setNewTagName(''); setNewTagColor('#6B7280'); }}
+                        PaperProps={{ sx: { minWidth: 220, p: 1 } }}
+                      >
+                        {workspaceTags && workspaceTags
+                          .filter((t) => !task.tags_details?.find((td) => td.id === t.id))
+                          .map((tag) => (
+                            <MenuItem
+                              key={tag.id}
+                              dense
+                              onClick={async () => {
+                                setTagMenuAnchor(null);
+                                try {
+                                  await addTagToTask({ taskId: taskId!, tagId: tag.id }).unwrap();
+                                } catch {
+                                  enqueueSnackbar('Failed to add tag', { variant: 'error' });
+                                }
+                              }}
+                            >
+                              <Box
+                                sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color, mr: 1, flexShrink: 0 }}
+                              />
+                              {tag.name}
+                            </MenuItem>
+                          ))}
+                        <Divider sx={{ my: 0.5 }} />
+                        <Box sx={{ px: 1, pt: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary">Create new tag</Typography>
+                          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+                            <TextField
+                              size="small"
+                              placeholder="Tag name"
+                              value={newTagName}
+                              onChange={(e) => setNewTagName(e.target.value)}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              sx={{ flex: 1, '& .MuiInputBase-input': { py: 0.5 } }}
+                            />
+                            <TextField
+                              type="color"
+                              size="small"
+                              value={newTagColor}
+                              onChange={(e) => setNewTagColor(e.target.value)}
+                              sx={{ width: 48, '& .MuiInputBase-input': { py: 0.5, px: 0.5 } }}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          </Stack>
+                          <Button
+                            size="small"
+                            fullWidth
+                            sx={{ mt: 0.5 }}
+                            disabled={!newTagName.trim() || !workspaceId}
+                            onClick={async () => {
+                              if (!newTagName.trim() || !workspaceId) return;
+                              setTagMenuAnchor(null);
+                              try {
+                                const tag = await createTag({ workspace: workspaceId, name: newTagName.trim(), color: newTagColor }).unwrap();
+                                await addTagToTask({ taskId: taskId!, tagId: tag.id }).unwrap();
+                                setNewTagName('');
+                                setNewTagColor('#6B7280');
+                              } catch {
+                                enqueueSnackbar('Failed to create tag', { variant: 'error' });
+                              }
+                            }}
+                          >
+                            Create &amp; Add
+                          </Button>
+                        </Box>
+                      </Menu>
                     </Box>
 
                     {/* Sprint */}

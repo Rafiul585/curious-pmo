@@ -1,5 +1,6 @@
 import { api } from '../utils/api';
 import { ActivityLog } from './projectApi';
+import type { Tag } from './tagApi';
 
 interface PaginatedResponse<T> {
   count: number;
@@ -38,6 +39,8 @@ export interface Task {
   parent?: number | null;
   subtask_count?: number;
   subtasks_done?: number;
+  tags?: number[];
+  tags_details?: Tag[];
   created_at?: string;
   updated_at?: string;
 }

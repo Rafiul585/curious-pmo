@@ -87,6 +87,7 @@ export const api = createApi({
     'TimeLog',
     'Checklist',
     'ProjectStatus',
+    'Tag',
   ],
   endpoints: () => ({}),
 });

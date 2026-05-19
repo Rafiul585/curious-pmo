@@ -707,6 +707,14 @@ export const ProjectDetailPage = () => {
                                 sx={{ fontSize: '0.65rem', height: 20 }}
                               />
                             )}
+                            {task.tags_details?.map((tag) => (
+                              <Chip
+                                key={tag.id}
+                                label={tag.name}
+                                size="small"
+                                sx={{ bgcolor: tag.color, color: 'white', fontSize: '0.65rem', height: 20 }}
+                              />
+                            ))}
                           </Stack>
                         </Stack>
                       </Paper>

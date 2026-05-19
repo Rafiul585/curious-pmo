@@ -41,6 +41,7 @@ import { useListMilestonesQuery } from '../api/milestoneApi';
 import { useListSprintsQuery } from '../api/sprintApi';
 import { useGetCurrentUserQuery } from '../api/userApi';
 import { TaskDetailModal } from '../components/tasks/TaskDetailModal';
+import { useListTagsQuery } from '../api/tagApi';
 
 const priorityColors: Record<string, 'default' | 'info' | 'warning' | 'error'> = {
   'Low': 'default',
@@ -78,6 +79,7 @@ export const TasksPage = () => {
     status: searchParams.get('status') ?? '',
     priority: searchParams.get('priority') ?? '',
     project: searchParams.get('project') ?? '',
+    tag: searchParams.get('tag') ?? '',
   };
 
   const setTabValue = (v: number) =>
@@ -89,6 +91,7 @@ export const TasksPage = () => {
       if (next.status) p.set('status', next.status); else p.delete('status');
       if (next.priority) p.set('priority', next.priority); else p.delete('priority');
       if (next.project) p.set('project', next.project); else p.delete('project');
+      if (next.tag) p.set('tag', next.tag); else p.delete('tag');
       return p;
     }, { replace: true });
   };
@@ -97,6 +100,7 @@ export const TasksPage = () => {
   const { data: myTasks, isLoading: loadingMy } = useGetMyTasksQuery();
   const { data: projects } = useListProjectsQuery();
   const { data: currentUser } = useGetCurrentUserQuery();
+  const { data: allTags } = useListTagsQuery();
   const [createTask, { isLoading: creating }] = useCreateTaskMutation();
 
   const [form, setForm] = useState({
@@ -172,6 +176,7 @@ export const TasksPage = () => {
   const filteredTasks = tasks?.filter((task) => {
     if (filters.status && task.status !== filters.status) return false;
     if (filters.priority && task.priority !== filters.priority) return false;
+    if (filters.tag && !task.tags?.includes(Number(filters.tag))) return false;
     return true;
   });
 
@@ -299,8 +304,24 @@ export const TasksPage = () => {
               <MenuItem value="Critical">Critical</MenuItem>
             </Select>
           </FormControl>
-          {(filters.status || filters.priority) && (
-            <Button size="small" onClick={() => setFilters({ status: '', priority: '', project: '' })}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Tag</InputLabel>
+            <Select
+              value={filters.tag}
+              label="Tag"
+              onChange={(e) => setFilters((f) => ({ ...f, tag: e.target.value }))}
+            >
+              <MenuItem value="">All</MenuItem>
+              {allTags?.map((tag) => (
+                <MenuItem key={tag.id} value={String(tag.id)}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color, mr: 1, display: 'inline-block' }} />
+                  {tag.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          {(filters.status || filters.priority || filters.tag) && (
+            <Button size="small" onClick={() => setFilters({ status: '', priority: '', project: '', tag: '' })}>
               Clear Filters
             </Button>
           )}

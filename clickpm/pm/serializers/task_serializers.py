@@ -2,7 +2,9 @@ from rest_framework import serializers
 
 from pm.models.task_models import Task, TaskDependency, TimeLog
 from pm.models.user_models import User
+from pm.models.workspace_models import Tag
 from pm.serializers.user_serializers import UserMinimalSerializer
+from pm.serializers.tag_serializers import TagSerializer
 
 
 class SubtaskSerializer(serializers.ModelSerializer):
@@ -29,6 +31,7 @@ class TaskSerializer(serializers.ModelSerializer):
     is_blocked = serializers.SerializerMethodField()
     subtask_count = serializers.SerializerMethodField()
     subtasks_done = serializers.SerializerMethodField()
+    tags_details = TagSerializer(source='tags', many=True, read_only=True)
 
     class Meta:
         model = Task
@@ -37,6 +40,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'assignee', 'assignee_details', 'assignees', 'assignees_details',
             'reporter', 'reporter_details', 'status', 'priority', 'start_date',
             'due_date', 'estimated_hours', 'actual_hours', 'parent',
+            'tags', 'tags_details',
             'dependencies', 'is_blocked', 'subtask_count', 'subtasks_done',
             'created_at', 'updated_at'
         ]
@@ -66,6 +70,7 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     subtasks = SubtaskSerializer(many=True, read_only=True)
     subtask_count = serializers.SerializerMethodField()
     subtasks_done = serializers.SerializerMethodField()
+    tags_details = TagSerializer(source='tags', many=True, read_only=True)
 
     class Meta:
         model = Task
@@ -75,6 +80,7 @@ class TaskDetailSerializer(serializers.ModelSerializer):
             'reporter', 'reporter_details',
             'status', 'priority', 'start_date', 'due_date',
             'estimated_hours', 'actual_hours', 'parent',
+            'tags', 'tags_details',
             'dependencies', 'is_blocked',
             'subtasks', 'subtask_count', 'subtasks_done',
             'created_at', 'updated_at'

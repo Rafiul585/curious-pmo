@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from pm.models.project_models import Project, ProjectMember, ProjectStatus, Milestone, Sprint
+from pm.models.workspace_models import Tag
 from pm.serializers.user_serializers import UserMinimalSerializer, RoleSerializer
+from pm.serializers.tag_serializers import TagSerializer
 
 
 class ProjectStatusSerializer(serializers.ModelSerializer):
@@ -86,15 +88,16 @@ class ProjectSerializer(serializers.ModelSerializer):
     milestones = MilestoneSerializer(many=True, read_only=True)
     workspace_name = serializers.CharField(source='workspace.name', read_only=True)
     completion_percentage = serializers.SerializerMethodField()
+    tags_details = TagSerializer(source='tags', many=True, read_only=True)
 
     class Meta:
         model = Project
         fields = [
             'id', 'name', 'description', 'start_date', 'end_date',
             'status', 'health_status', 'workspace', 'workspace_name', 'members', 'milestones',
-            'tags', 'archived', 'completion_percentage', 'created_at', 'updated_at'
+            'tags', 'tags_details', 'archived', 'completion_percentage', 'created_at', 'updated_at'
         ]
-    
+
     def get_completion_percentage(self, obj):
         return round(obj.calculate_completion_percentage(), 2)
 
@@ -115,6 +118,12 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
 
 
 class ProjectCreateUpdateSerializer(serializers.ModelSerializer):
+    tags = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Tag.objects.all(),
+        required=False,
+    )
+
     class Meta:
         model = Project
         fields = [
@@ -122,6 +131,20 @@ class ProjectCreateUpdateSerializer(serializers.ModelSerializer):
             'status', 'health_status', 'workspace', 'tags', 'archived', 'visibility'
         ]
         read_only_fields = ['id']
+
+    def create(self, validated_data):
+        tags = validated_data.pop('tags', [])
+        project = super().create(validated_data)
+        if tags:
+            project.tags.set(tags)
+        return project
+
+    def update(self, instance, validated_data):
+        tags = validated_data.pop('tags', None)
+        project = super().update(instance, validated_data)
+        if tags is not None:
+            project.tags.set(tags)
+        return project
 
 
 class MilestoneCreateUpdateSerializer(serializers.ModelSerializer):
