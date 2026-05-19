@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { DocDetailPage } from './pages/DocDetailPage';
+import { HelpPage } from './pages/HelpPage';
 import { TasksPage } from './pages/TasksPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { GanttPage } from './pages/GanttPage';
@@ -69,6 +70,9 @@ const App = () => (
 
       {/* Notifications */}
       <Route path="/notifications" element={<NotificationsPage />} />
+
+      {/* Help */}
+      <Route path="/help" element={<HelpPage />} />
     </Route>
 
     {/* 404 */}

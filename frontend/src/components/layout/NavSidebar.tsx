@@ -28,6 +28,7 @@ import {
   People as PeopleIcon,
   EmojiEvents as GoalsIcon,
   VisibilityOff as GuestIcon,
+  HelpOutline as HelpIcon,
 } from '@mui/icons-material';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
@@ -66,6 +67,7 @@ const navItems: NavItemOrDivider[] = [
   { label: 'Search', to: '/search', icon: <SearchIcon /> },
   { divider: true },
   { label: 'My Profile', to: '/profile', icon: <PersonIcon /> },
+  { label: 'Help', to: '/help', icon: <HelpIcon /> },
 ];
 
 const DRAWER_WIDTH = 240;
