@@ -492,7 +492,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C6 — Time Tracking (Estimated vs. Actual Hours)
+## [x] C6 — Time Tracking (Estimated vs. Actual Hours)
 
 **Why:** Without time tracking, there's no data for billing, capacity planning, or identifying which projects are burning more hours than planned.
 
