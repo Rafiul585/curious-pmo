@@ -1,6 +1,6 @@
 from .user_models import User, Role
 from .project_models import Project, ProjectMember, Milestone, Sprint
-from .task_models import Task, TaskDependency, TimeLog
+from .task_models import Task, TaskDependency, TimeLog, Checklist, ChecklistItem
 from .workspace_models import Workspace, WorkspaceMember
 from .comment_models import Comment
 from .attachment_models import Attachment

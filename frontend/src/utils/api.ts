@@ -85,6 +85,7 @@ export const api = createApi({
     'TaskDependency',
     'Dashboard',
     'TimeLog',
+    'Checklist',
   ],
   endpoints: () => ({}),
 });

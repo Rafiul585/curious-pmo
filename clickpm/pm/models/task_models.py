@@ -113,6 +113,35 @@ class TimeLog(models.Model):
 
 
 # ----------------------------
+# Checklist Models
+# ----------------------------
+class Checklist(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='checklists')
+    title = models.CharField(max_length=200)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+
+    def __str__(self):
+        return f"{self.task.title} — {self.title}"
+
+
+class ChecklistItem(models.Model):
+    checklist = models.ForeignKey(Checklist, on_delete=models.CASCADE, related_name='items')
+    text = models.CharField(max_length=500)
+    is_checked = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return self.text
+
+
+# ----------------------------
 # Task Dependency Model
 # ----------------------------
 class TaskDependency(models.Model):

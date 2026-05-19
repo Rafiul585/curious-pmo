@@ -55,6 +55,8 @@ import {
   Add,
   CheckCircle,
   RadioButtonUnchecked,
+  DeleteOutline,
+  PlaylistAdd,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -69,6 +71,14 @@ import {
   useListSubtasksQuery,
 } from '../../api/taskApi';
 import { useGetTaskCommentsQuery, useCreateCommentMutation } from '../../api/commentApi';
+import {
+  useListChecklistsQuery,
+  useCreateChecklistMutation,
+  useDeleteChecklistMutation,
+  useCreateChecklistItemMutation,
+  useUpdateChecklistItemMutation,
+  useDeleteChecklistItemMutation,
+} from '../../api/checklistApi';
 import { useGetProjectQuery } from '../../api/projectApi';
 import { useGetTaskAttachmentsQuery, useUploadAttachmentMutation, useDeleteAttachmentMutation } from '../../api/attachmentApi';
 
@@ -137,12 +147,22 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const [deleteAttachment] = useDeleteAttachmentMutation();
   const { data: subtasks } = useListSubtasksQuery(taskId!, { skip: !taskId });
   const [createTask] = useCreateTaskMutation();
+  const { data: checklists } = useListChecklistsQuery(taskId!, { skip: !taskId });
+  const [createChecklist] = useCreateChecklistMutation();
+  const [deleteChecklist] = useDeleteChecklistMutation();
+  const [createChecklistItem] = useCreateChecklistItemMutation();
+  const [updateChecklistItem] = useUpdateChecklistItemMutation();
+  const [deleteChecklistItem] = useDeleteChecklistItemMutation();
 
   const [logHours, setLogHours] = useState('');
   const [logNote, setLogNote] = useState('');
   const [showAddSubtask, setShowAddSubtask] = useState(false);
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [selectedSubtaskId, setSelectedSubtaskId] = useState<number | null>(null);
+  const [newChecklistTitle, setNewChecklistTitle] = useState('');
+  const [showNewChecklist, setShowNewChecklist] = useState(false);
+  const [newItemText, setNewItemText] = useState<Record<number, string>>({});
+  const [showNewItem, setShowNewItem] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (task) {
@@ -258,6 +278,40 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
       enqueueSnackbar('Subtask created', { variant: 'success' });
     } catch {
       enqueueSnackbar('Failed to create subtask', { variant: 'error' });
+    }
+  };
+
+  const handleCreateChecklist = async () => {
+    const title = newChecklistTitle.trim();
+    if (!taskId || !title) return;
+    try {
+      await createChecklist({ task: taskId, title }).unwrap();
+      setNewChecklistTitle('');
+      setShowNewChecklist(false);
+      enqueueSnackbar('Checklist created', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to create checklist', { variant: 'error' });
+    }
+  };
+
+  const handleAddItem = async (checklistId: number) => {
+    const text = (newItemText[checklistId] || '').trim();
+    if (!taskId || !text) return;
+    try {
+      await createChecklistItem({ checklist: checklistId, text, taskId }).unwrap();
+      setNewItemText((p) => ({ ...p, [checklistId]: '' }));
+      setShowNewItem((p) => ({ ...p, [checklistId]: false }));
+    } catch {
+      enqueueSnackbar('Failed to add item', { variant: 'error' });
+    }
+  };
+
+  const handleToggleItem = async (itemId: number, checked: boolean) => {
+    if (!taskId) return;
+    try {
+      await updateChecklistItem({ id: itemId, taskId, is_checked: checked }).unwrap();
+    } catch {
+      enqueueSnackbar('Failed to update item', { variant: 'error' });
     }
   };
 
@@ -547,6 +601,162 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                         sx={{ mt: 0.5 }}
                       />
                     )}
+                  </Box>
+
+                  <Divider sx={{ my: 2 }} />
+
+                  {/* Checklists */}
+                  <Box sx={{ mb: 2 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Checklists
+                      </Typography>
+                      <Button
+                        size="small"
+                        startIcon={<PlaylistAdd fontSize="small" />}
+                        onClick={() => setShowNewChecklist(true)}
+                      >
+                        Add Checklist
+                      </Button>
+                    </Stack>
+
+                    {showNewChecklist && (
+                      <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+                        <TextField
+                          autoFocus
+                          size="small"
+                          placeholder="Checklist title…"
+                          value={newChecklistTitle}
+                          onChange={(e) => setNewChecklistTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); handleCreateChecklist(); }
+                            if (e.key === 'Escape') { setShowNewChecklist(false); setNewChecklistTitle(''); }
+                          }}
+                          sx={{ flex: 1 }}
+                        />
+                        <Button size="small" variant="contained" onClick={handleCreateChecklist} disabled={!newChecklistTitle.trim()}>
+                          Add
+                        </Button>
+                        <Button size="small" onClick={() => { setShowNewChecklist(false); setNewChecklistTitle(''); }}>
+                          Cancel
+                        </Button>
+                      </Stack>
+                    )}
+
+                    {checklists && checklists.map((cl) => {
+                      const pct = cl.total_items > 0
+                        ? Math.round((cl.checked_items / cl.total_items) * 100)
+                        : 0;
+                      return (
+                        <Box key={cl.id} sx={{ mb: 2 }}>
+                          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                            <Typography variant="body2" fontWeight={600}>{cl.title}</Typography>
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                              <Typography variant="caption" color="text.secondary">
+                                {cl.checked_items}/{cl.total_items}
+                              </Typography>
+                              <IconButton
+                                size="small"
+                                onClick={() => taskId && deleteChecklist({ id: cl.id, taskId })}
+                                sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                              >
+                                <DeleteOutline fontSize="small" />
+                              </IconButton>
+                            </Stack>
+                          </Stack>
+
+                          <LinearProgress
+                            variant="determinate"
+                            value={pct}
+                            color={pct === 100 ? 'success' : 'primary'}
+                            sx={{ height: 4, borderRadius: 2, mb: 1 }}
+                          />
+
+                          <Stack spacing={0.5}>
+                            {cl.items.map((item) => (
+                              <Stack
+                                key={item.id}
+                                direction="row"
+                                alignItems="center"
+                                spacing={1}
+                                sx={{
+                                  px: 1,
+                                  py: 0.5,
+                                  borderRadius: 1,
+                                  '&:hover .item-delete': { opacity: 1 },
+                                }}
+                              >
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleToggleItem(item.id, !item.is_checked)}
+                                  sx={{ p: 0 }}
+                                >
+                                  {item.is_checked
+                                    ? <CheckCircle fontSize="small" color="success" />
+                                    : <RadioButtonUnchecked fontSize="small" color="disabled" />}
+                                </IconButton>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    flex: 1,
+                                    textDecoration: item.is_checked ? 'line-through' : 'none',
+                                    color: item.is_checked ? 'text.secondary' : 'text.primary',
+                                  }}
+                                >
+                                  {item.text}
+                                </Typography>
+                                <IconButton
+                                  className="item-delete"
+                                  size="small"
+                                  onClick={() => taskId && deleteChecklistItem({ id: item.id, taskId })}
+                                  sx={{ p: 0, opacity: 0, transition: 'opacity 0.15s', color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                                >
+                                  <DeleteOutline fontSize="small" />
+                                </IconButton>
+                              </Stack>
+                            ))}
+                          </Stack>
+
+                          {/* Add item row */}
+                          {showNewItem[cl.id] ? (
+                            <Stack direction="row" spacing={1} sx={{ mt: 0.5, pl: 1 }}>
+                              <TextField
+                                autoFocus
+                                size="small"
+                                placeholder="New item…"
+                                value={newItemText[cl.id] || ''}
+                                onChange={(e) => setNewItemText((p) => ({ ...p, [cl.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') { e.preventDefault(); handleAddItem(cl.id); }
+                                  if (e.key === 'Escape') setShowNewItem((p) => ({ ...p, [cl.id]: false }));
+                                }}
+                                sx={{ flex: 1 }}
+                              />
+                              <Button size="small" variant="contained" onClick={() => handleAddItem(cl.id)}>
+                                Add
+                              </Button>
+                            </Stack>
+                          ) : (
+                            <Box
+                              sx={{
+                                mt: 0.5,
+                                pl: 1,
+                                cursor: 'pointer',
+                                color: 'text.secondary',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                '&:hover': { color: 'text.primary' },
+                              }}
+                              onClick={() => setShowNewItem((p) => ({ ...p, [cl.id]: true }))}
+                            >
+                              <Add fontSize="small" />
+                              <Typography variant="caption">Add item</Typography>
+                            </Box>
+                          )}
+                        </Box>
+                      );
+                    })}
                   </Box>
 
                   <Divider sx={{ my: 2 }} />
