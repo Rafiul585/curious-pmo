@@ -654,7 +654,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D2 — Automation Rules
+## [x] D2 — Automation Rules
 
 **Why:** Eliminates repetitive manual work. "When task status = Done → notify manager", "When due date passes → set priority to Critical".
 
