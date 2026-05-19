@@ -688,7 +688,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D3 — Goals / OKRs
+## [x] D3 — Goals / OKRs
 
 **Why:** Link project work to business objectives. Track whether the team is actually moving the needle on what matters.
 
