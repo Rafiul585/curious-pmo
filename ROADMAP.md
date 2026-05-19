@@ -592,7 +592,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C10 — Workload / Capacity View (Dedicated Page)
+## [x] C10 — Workload / Capacity View (Dedicated Page)
 
 **Why:** Team workload data exists in the dashboard API but there's no dedicated page for resource planning or drag-to-rebalance.
 
