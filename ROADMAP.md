@@ -435,7 +435,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C4 — Custom Statuses Per Project
+## [x] C4 — Custom Statuses Per Project
 
 **Why:** A software team needs `Backlog → In Dev → Code Review → QA → Done`. A marketing team needs `Idea → Draft → Review → Published`. Hardcoded global statuses block diverse workflows.
 
