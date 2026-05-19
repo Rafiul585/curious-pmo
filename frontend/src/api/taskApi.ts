@@ -33,8 +33,19 @@ export interface Task {
   estimated_hours?: number | null;
   actual_hours?: number;
   is_blocked?: boolean;
+  parent?: number | null;
+  subtask_count?: number;
+  subtasks_done?: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface Subtask {
+  id: number;
+  title: string;
+  status: string;
+  priority: string;
+  assignee?: number;
 }
 
 export interface TimeLog {
@@ -62,6 +73,7 @@ export interface TaskDetail extends Task {
     };
   };
   dependencies?: TaskDependency[];
+  subtasks?: Subtask[];
 }
 
 export interface TaskDependency {
@@ -79,6 +91,7 @@ export interface CreateTaskData {
   status?: string;
   priority?: string;
   sprint?: number;
+  parent?: number | null;
   assignee?: number;
   reporter?: number;
   due_date?: string;
@@ -245,6 +258,15 @@ export const taskApi = api.injectEndpoints({
       query: (body) => ({ url: '/tasks/reorder/', method: 'POST', body }),
       invalidatesTags: ['Kanban'],
     }),
+
+    listSubtasks: build.query<Subtask[], number>({
+      query: (parentId) => ({ url: '/tasks/', params: { parent: parentId } }),
+      transformResponse: (response: PaginatedResponse<Subtask> | Subtask[]) => {
+        if (Array.isArray(response)) return response;
+        return response.results || [];
+      },
+      providesTags: (_result, _error, parentId) => [{ type: 'Task' as const, id: `subtasks-${parentId}` }, 'Task'],
+    }),
   }),
 });
 
@@ -266,4 +288,5 @@ export const {
   useReorderTasksMutation,
   useGetTaskTimeLogsQuery,
   useLogTimeMutation,
+  useListSubtasksQuery,
 } = taskApi;

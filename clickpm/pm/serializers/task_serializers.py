@@ -4,6 +4,13 @@ from pm.models.task_models import Task, TaskDependency, TimeLog
 from pm.serializers.user_serializers import UserMinimalSerializer
 
 
+class SubtaskSerializer(serializers.ModelSerializer):
+    """Shallow subtask representation used inside TaskSerializer/TaskDetailSerializer."""
+    class Meta:
+        model = Task
+        fields = ['id', 'title', 'status', 'assignee', 'priority']
+
+
 class TaskDependencySerializer(serializers.ModelSerializer):
     depends_on_title = serializers.CharField(source='depends_on.title', read_only=True)
 
@@ -18,14 +25,17 @@ class TaskSerializer(serializers.ModelSerializer):
     dependencies = TaskDependencySerializer(source='dependent_on', many=True, read_only=True)
     sprint_name = serializers.CharField(source='sprint.name', read_only=True)
     is_blocked = serializers.SerializerMethodField()
+    subtask_count = serializers.SerializerMethodField()
+    subtasks_done = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
         fields = [
             'id', 'sprint', 'sprint_name', 'title', 'description', 'assignee', 'assignee_details',
             'reporter', 'reporter_details', 'status', 'priority', 'start_date',
-            'due_date', 'estimated_hours', 'actual_hours',
-            'dependencies', 'is_blocked', 'created_at', 'updated_at'
+            'due_date', 'estimated_hours', 'actual_hours', 'parent',
+            'dependencies', 'is_blocked', 'subtask_count', 'subtasks_done',
+            'created_at', 'updated_at'
         ]
 
     def get_is_blocked(self, obj) -> bool:
@@ -33,6 +43,12 @@ class TaskSerializer(serializers.ModelSerializer):
             type='Blocked By',
             depends_on__status__in=['To-do', 'In Progress', 'Review'],
         ).exists()
+
+    def get_subtask_count(self, obj) -> int:
+        return obj.subtasks.count()
+
+    def get_subtasks_done(self, obj) -> int:
+        return obj.subtasks.filter(status='Done').count()
 
 
 class TaskDetailSerializer(serializers.ModelSerializer):
@@ -43,6 +59,9 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     sprint_name = serializers.CharField(source='sprint.name', read_only=True)
     sprint_details = serializers.SerializerMethodField()
     is_blocked = serializers.SerializerMethodField()
+    subtasks = SubtaskSerializer(many=True, read_only=True)
+    subtask_count = serializers.SerializerMethodField()
+    subtasks_done = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -50,8 +69,10 @@ class TaskDetailSerializer(serializers.ModelSerializer):
             'id', 'sprint', 'sprint_name', 'sprint_details', 'title', 'description',
             'assignee', 'assignee_details', 'reporter', 'reporter_details',
             'status', 'priority', 'start_date', 'due_date',
-            'estimated_hours', 'actual_hours',
-            'dependencies', 'is_blocked', 'created_at', 'updated_at'
+            'estimated_hours', 'actual_hours', 'parent',
+            'dependencies', 'is_blocked',
+            'subtasks', 'subtask_count', 'subtasks_done',
+            'created_at', 'updated_at'
         ]
 
     def get_is_blocked(self, obj) -> bool:
@@ -59,6 +80,12 @@ class TaskDetailSerializer(serializers.ModelSerializer):
             type='Blocked By',
             depends_on__status__in=['To-do', 'In Progress', 'Review'],
         ).exists()
+
+    def get_subtask_count(self, obj) -> int:
+        return obj.subtasks.count()
+
+    def get_subtasks_done(self, obj) -> int:
+        return obj.subtasks.filter(status='Done').count()
 
     def get_sprint_details(self, obj):
         if obj.sprint:
@@ -83,7 +110,7 @@ class TaskCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = [
-            'id', 'sprint', 'title', 'description', 'assignee', 'reporter',
+            'id', 'sprint', 'parent', 'title', 'description', 'assignee', 'reporter',
             'status', 'priority', 'start_date', 'due_date', 'estimated_hours', 'actual_hours'
         ]
         read_only_fields = ['id']

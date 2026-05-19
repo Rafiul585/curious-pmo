@@ -23,7 +23,7 @@ from pm.services.notification_service import NotificationService
 class TaskViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsTaskAssignee | CanViewProject]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['status', 'priority', 'assignee', 'reporter', 'sprint']
+    filterset_fields = ['status', 'priority', 'assignee', 'reporter', 'sprint', 'parent']
     search_fields = ['title', 'description']
     ordering_fields = ['due_date', 'start_date', 'priority']
     ordering = ['-id']

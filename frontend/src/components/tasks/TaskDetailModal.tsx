@@ -46,6 +46,9 @@ import {
   InsertDriveFile,
   Create,
   SwapHoriz,
+  Add,
+  CheckCircle,
+  RadioButtonUnchecked,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -56,6 +59,8 @@ import {
   useGetTaskActivityLogsQuery,
   useGetTaskTimeLogsQuery,
   useLogTimeMutation,
+  useCreateTaskMutation,
+  useListSubtasksQuery,
 } from '../../api/taskApi';
 import { useGetTaskCommentsQuery, useCreateCommentMutation } from '../../api/commentApi';
 import { useGetProjectQuery } from '../../api/projectApi';
@@ -123,9 +128,14 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const [logTime, { isLoading: loggingTime }] = useLogTimeMutation();
   const [uploadAttachment, { isLoading: uploading }] = useUploadAttachmentMutation();
   const [deleteAttachment] = useDeleteAttachmentMutation();
+  const { data: subtasks } = useListSubtasksQuery(taskId!, { skip: !taskId });
+  const [createTask] = useCreateTaskMutation();
 
   const [logHours, setLogHours] = useState('');
   const [logNote, setLogNote] = useState('');
+  const [showAddSubtask, setShowAddSubtask] = useState(false);
+  const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [selectedSubtaskId, setSelectedSubtaskId] = useState<number | null>(null);
 
   useEffect(() => {
     if (task) {
@@ -222,6 +232,25 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const mentionMembers = projectMembers
     .filter((m) => !mentionQuery || m.user.username.toLowerCase().startsWith(mentionQuery.toLowerCase()))
     .slice(0, 6);
+
+  const handleAddSubtask = async () => {
+    const title = subtaskTitle.trim();
+    if (!taskId || !title || !task) return;
+    try {
+      await createTask({
+        title,
+        status: 'To-do',
+        priority: 'Medium',
+        sprint: task.sprint as number,
+        parent: taskId,
+      }).unwrap();
+      setSubtaskTitle('');
+      setShowAddSubtask(false);
+      enqueueSnackbar('Subtask created', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to create subtask', { variant: 'error' });
+    }
+  };
 
   const handleLogTime = async () => {
     const hours = parseFloat(logHours);
@@ -423,6 +452,93 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                       {task.description || 'No description provided.'}
                     </Typography>
                   )}
+
+                  <Divider sx={{ my: 2 }} />
+
+                  {/* Subtasks */}
+                  <Box sx={{ mb: 2 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Subtasks
+                        {subtasks && subtasks.length > 0 && (
+                          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                            ({subtasks.filter((s) => s.status === 'Done').length}/{subtasks.length} done)
+                          </Typography>
+                        )}
+                      </Typography>
+                      <Button
+                        size="small"
+                        startIcon={<Add fontSize="small" />}
+                        onClick={() => setShowAddSubtask(true)}
+                      >
+                        Add
+                      </Button>
+                    </Stack>
+
+                    {subtasks && subtasks.length > 0 && (
+                      <Stack spacing={0.5} sx={{ mb: 1 }}>
+                        {subtasks.map((sub) => (
+                          <Paper
+                            key={sub.id}
+                            variant="outlined"
+                            sx={{
+                              px: 1.5,
+                              py: 0.75,
+                              cursor: 'pointer',
+                              '&:hover': { bgcolor: 'action.hover' },
+                            }}
+                            onClick={() => setSelectedSubtaskId(sub.id)}
+                          >
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                              {sub.status === 'Done' ? (
+                                <CheckCircle fontSize="small" color="success" />
+                              ) : (
+                                <RadioButtonUnchecked fontSize="small" color="disabled" />
+                              )}
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  flex: 1,
+                                  textDecoration: sub.status === 'Done' ? 'line-through' : 'none',
+                                  color: sub.status === 'Done' ? 'text.secondary' : 'text.primary',
+                                }}
+                              >
+                                {sub.title}
+                              </Typography>
+                              <Chip
+                                label={sub.status}
+                                size="small"
+                                color={
+                                  sub.status === 'Done' ? 'success' :
+                                  sub.status === 'In Progress' ? 'primary' :
+                                  sub.status === 'Review' ? 'warning' : 'default'
+                                }
+                                sx={{ fontSize: '0.65rem', height: 18 }}
+                              />
+                            </Stack>
+                          </Paper>
+                        ))}
+                      </Stack>
+                    )}
+
+                    {showAddSubtask && (
+                      <TextField
+                        autoFocus
+                        size="small"
+                        fullWidth
+                        placeholder="Subtask title… (Enter to save, Escape to cancel)"
+                        value={subtaskTitle}
+                        onChange={(e) => setSubtaskTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); handleAddSubtask(); }
+                          if (e.key === 'Escape') { setShowAddSubtask(false); setSubtaskTitle(''); }
+                        }}
+                        onBlur={() => { if (!subtaskTitle.trim()) { setShowAddSubtask(false); } }}
+                        variant="outlined"
+                        sx={{ mt: 0.5 }}
+                      />
+                    )}
+                  </Box>
 
                   <Divider sx={{ my: 2 }} />
 
@@ -932,6 +1048,14 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
           <Delete fontSize="small" sx={{ mr: 1 }} /> Delete task
         </MenuItem>
       </Menu>
+
+      {/* Subtask modal (recursive) */}
+      <TaskDetailModal
+        taskId={selectedSubtaskId}
+        open={Boolean(selectedSubtaskId)}
+        onClose={() => setSelectedSubtaskId(null)}
+        onDeleted={() => setSelectedSubtaskId(null)}
+      />
     </Dialog>
   );
 };

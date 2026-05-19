@@ -22,7 +22,11 @@ class Task(models.Model):
     ]
     
     sprint = models.ForeignKey(Sprint, on_delete=models.CASCADE, related_name='tasks')
-    
+    parent = models.ForeignKey(
+        'self', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='subtasks'
+    )
+
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True)
     

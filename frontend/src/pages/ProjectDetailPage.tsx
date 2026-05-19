@@ -65,6 +65,7 @@ import { useListTasksQuery, useBulkUpdateTasksMutation, useCreateTaskMutation } 
 import { MilestoneManager } from '../components/projects/MilestoneManager';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
 import { HealthBadge } from '../components/feedback/HealthBadge';
+import { TaskDetailModal } from '../components/tasks/TaskDetailModal';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -149,6 +150,7 @@ export const ProjectDetailPage = () => {
   const [removeMember] = useRemoveProjectMemberMutation();
   const [createMilestone, { isLoading: creatingMilestone }] = useCreateMilestoneMutation();
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+  const [openTaskId, setOpenTaskId] = useState<number | null>(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [addTaskTitle, setAddTaskTitle] = useState('');
   const [bulkUpdate] = useBulkUpdateTasksMutation();
@@ -638,7 +640,11 @@ export const ProjectDetailPage = () => {
                             onChange={() => toggleTaskSelection(task.id)}
                             onClick={(e) => e.stopPropagation()}
                           />
-                          <Typography variant="body2" sx={{ flex: 1 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ flex: 1, '&:hover': { textDecoration: 'underline' } }}
+                            onClick={(e) => { e.stopPropagation(); setOpenTaskId(task.id); }}
+                          >
                             {task.title}
                           </Typography>
                           <Stack direction="row" spacing={0.5} flexShrink={0}>
@@ -659,6 +665,15 @@ export const ProjectDetailPage = () => {
                             />
                             {task.is_blocked && (
                               <Chip label="Blocked" color="error" size="small" sx={{ fontWeight: 600 }} />
+                            )}
+                            {(task.subtask_count ?? 0) > 0 && (
+                              <Chip
+                                label={`${task.subtasks_done ?? 0}/${task.subtask_count} subtasks`}
+                                size="small"
+                                variant="outlined"
+                                color={task.subtasks_done === task.subtask_count ? 'success' : 'default'}
+                                sx={{ fontSize: '0.65rem', height: 20 }}
+                              />
                             )}
                           </Stack>
                         </Stack>
@@ -919,6 +934,14 @@ export const ProjectDetailPage = () => {
           </Stack>
         </Paper>
       )}
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        taskId={openTaskId}
+        open={Boolean(openTaskId)}
+        onClose={() => setOpenTaskId(null)}
+        onDeleted={() => setOpenTaskId(null)}
+      />
 
       {/* Add Milestone Dialog */}
       <Dialog open={milestoneDialogOpen} onClose={() => setMilestoneDialogOpen(false)} fullWidth maxWidth="sm">
