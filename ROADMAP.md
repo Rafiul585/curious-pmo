@@ -1083,7 +1083,7 @@ Cover all 40+ endpoints. Include authentication flow (`/api/auth/login/`, `/api/
 
 ---
 
-## [ ] DOC5 — User Guide
+## [x] DOC5 — User Guide
 
 **File to create:** `docs/USER_GUIDE.md`
 
