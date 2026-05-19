@@ -621,7 +621,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D1 — Custom Fields on Tasks
+## [x] D1 — Custom Fields on Tasks
 
 **Why:** Different teams need different metadata. A bug tracker needs "Affected Version" and "Browser". A sales team needs "Deal Value" and "Close Date".
 
