@@ -43,6 +43,9 @@ export interface Task {
   tags_details?: Tag[];
   watcher_count?: number;
   watchers_details?: TaskUser[];
+  recurrence?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | null;
+  recurrence_end?: string | null;
+  recurrence_parent?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -106,6 +109,9 @@ export interface CreateTaskData {
   start_date?: string;
   estimated_hours?: number | null;
   actual_hours?: number;
+  recurrence?: string | null;
+  recurrence_end?: string | null;
+  recurrence_parent?: number | null;
 }
 
 export const taskApi = api.injectEndpoints({

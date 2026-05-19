@@ -44,6 +44,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'tags', 'tags_details',
             'dependencies', 'is_blocked', 'subtask_count', 'subtasks_done',
             'watcher_count',
+            'recurrence', 'recurrence_end', 'recurrence_parent',
             'created_at', 'updated_at'
         ]
 
@@ -91,6 +92,7 @@ class TaskDetailSerializer(serializers.ModelSerializer):
             'dependencies', 'is_blocked',
             'subtasks', 'subtask_count', 'subtasks_done',
             'watchers_details', 'watcher_count',
+            'recurrence', 'recurrence_end', 'recurrence_parent',
             'created_at', 'updated_at'
         ]
 
@@ -141,6 +143,7 @@ class TaskCreateUpdateSerializer(serializers.ModelSerializer):
             'id', 'sprint', 'parent', 'title', 'description', 'assignee', 'assignees',
             'reporter', 'status', 'priority', 'start_date', 'due_date',
             'estimated_hours', 'actual_hours',
+            'recurrence', 'recurrence_end', 'recurrence_parent',
         ]
         read_only_fields = ['id']
 

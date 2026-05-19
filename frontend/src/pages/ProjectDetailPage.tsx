@@ -54,6 +54,7 @@ import {
   Circle,
   FileDownload,
   Visibility,
+  Repeat,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -742,6 +743,16 @@ export const ProjectDetailPage = () => {
                                 size="small"
                                 variant="outlined"
                                 color={task.subtasks_done === task.subtask_count ? 'success' : 'default'}
+                                sx={{ fontSize: '0.65rem', height: 20 }}
+                              />
+                            )}
+                            {task.recurrence && (
+                              <Chip
+                                icon={<Repeat sx={{ fontSize: '0.75rem !important' }} />}
+                                label={task.recurrence.charAt(0).toUpperCase() + task.recurrence.slice(1)}
+                                size="small"
+                                color="info"
+                                variant="outlined"
                                 sx={{ fontSize: '0.65rem', height: 20 }}
                               />
                             )}

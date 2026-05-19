@@ -59,6 +59,7 @@ import {
   PlaylistAdd,
   Visibility,
   VisibilityOff,
+  Repeat,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -131,6 +132,8 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
     assignee: '' as string | number,
     assignees: [] as number[],
     reporter: '' as string | number,
+    recurrence: '' as string,
+    recurrence_end: '' as string,
   });
 
   const { data: task, isLoading } = useGetTaskQuery(taskId!, { skip: !taskId });
@@ -215,6 +218,8 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
         assignee: task.assignee || '',
         assignees: task.assignees || [],
         reporter: task.reporter || '',
+        recurrence: task.recurrence || '',
+        recurrence_end: task.recurrence_end || '',
       });
     }
   }, [task]);
@@ -233,6 +238,8 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
           assignee: editForm.assignee ? Number(editForm.assignee) : undefined,
           assignees: editForm.assignees,
           reporter: editForm.reporter ? Number(editForm.reporter) : undefined,
+          recurrence: editForm.recurrence || null,
+          recurrence_end: editForm.recurrence_end || null,
         },
       }).unwrap();
       enqueueSnackbar('Task updated successfully', { variant: 'success' });
@@ -1183,6 +1190,60 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                               : 'No due date'}
                           </Typography>
                         </Stack>
+                      )}
+                    </Box>
+
+                    {/* Recurrence */}
+                    <Box>
+                      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 0.5 }}>
+                        <Repeat fontSize="small" color="action" sx={{ fontSize: '0.85rem' }} />
+                        <Typography variant="caption" color="text.secondary">Repeat</Typography>
+                      </Stack>
+                      {editMode ? (
+                        <Stack spacing={1}>
+                          <TextField
+                            select
+                            size="small"
+                            fullWidth
+                            value={editForm.recurrence}
+                            onChange={(e) => setEditForm((f) => ({ ...f, recurrence: e.target.value }))}
+                          >
+                            <MenuItem value="">None</MenuItem>
+                            <MenuItem value="daily">Daily</MenuItem>
+                            <MenuItem value="weekly">Weekly</MenuItem>
+                            <MenuItem value="biweekly">Bi-Weekly</MenuItem>
+                            <MenuItem value="monthly">Monthly</MenuItem>
+                          </TextField>
+                          {editForm.recurrence && (
+                            <TextField
+                              type="date"
+                              label="Repeat until"
+                              size="small"
+                              fullWidth
+                              value={editForm.recurrence_end}
+                              onChange={(e) => setEditForm((f) => ({ ...f, recurrence_end: e.target.value }))}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          )}
+                        </Stack>
+                      ) : task.recurrence ? (
+                        <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" sx={{ gap: 0.5 }}>
+                          <Chip
+                            icon={<Repeat fontSize="small" />}
+                            label={task.recurrence.charAt(0).toUpperCase() + task.recurrence.slice(1)}
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem', height: 22 }}
+                          />
+                          {task.recurrence_end && (
+                            <Typography variant="caption" color="text.secondary">
+                              until {new Date(task.recurrence_end).toLocaleDateString()}
+                            </Typography>
+                          )}
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" color="text.disabled">None</Typography>
                       )}
                     </Box>
 

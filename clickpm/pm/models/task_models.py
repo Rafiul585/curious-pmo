@@ -21,7 +21,14 @@ class Task(models.Model):
         ('High', 'High'),
         ('Critical', 'Critical'),
     ]
-    
+
+    RECURRENCE_CHOICES = [
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('biweekly', 'Bi-Weekly'),
+        ('monthly', 'Monthly'),
+    ]
+
     sprint = models.ForeignKey(Sprint, on_delete=models.CASCADE, related_name='tasks')
     parent = models.ForeignKey(
         'self', null=True, blank=True,
@@ -52,6 +59,12 @@ class Task(models.Model):
 
     tags = models.ManyToManyField(Tag, blank=True, related_name='tasks')
     watchers = models.ManyToManyField(User, blank=True, related_name='watched_tasks')
+
+    recurrence = models.CharField(max_length=20, choices=RECURRENCE_CHOICES, blank=True, null=True)
+    recurrence_end = models.DateField(null=True, blank=True)
+    recurrence_parent = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='recurrences'
+    )
 
     position = models.PositiveIntegerField(default=0, db_index=True)
 
