@@ -773,7 +773,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D6 — GitHub / GitLab Integration
+## [x] D6 — GitHub / GitLab Integration
 
 **Why:** Developers switch between the PM tool and GitHub constantly. Linking PRs/commits to tasks and auto-updating status on merge eliminates manual status updates.
 

@@ -50,6 +50,8 @@ import {
   CheckCircle,
   ContentCopy,
   VisibilityOff,
+  GitHub as GitHubIcon,
+  OpenInNew,
 } from '@mui/icons-material';
 import { Checkbox, FormControlLabel } from '@mui/material';
 import { useSnackbar } from 'notistack';
@@ -72,6 +74,12 @@ import {
   useDeleteTemplateMutation,
 } from '../api/templateApi';
 import type { TaskTemplate } from '../api/templateApi';
+import {
+  useListGitIntegrationsQuery,
+  useCreateGitIntegrationMutation,
+  useDeleteGitIntegrationMutation,
+} from '../api/gitApi';
+import type { CreateGitIntegrationData } from '../api/gitApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -132,6 +140,19 @@ export const WorkspaceDetailPage = () => {
     checklist_items_text: '',
   });
   const [templateForm, setTemplateForm] = useState(blankTemplateForm);
+
+  // Git integrations
+  const { data: gitIntegrations } = useListGitIntegrationsQuery(workspaceId, { skip: isCurrentUserGuest });
+  const [createGitIntegration] = useCreateGitIntegrationMutation();
+  const [deleteGitIntegration] = useDeleteGitIntegrationMutation();
+  const [showAddIntegration, setShowAddIntegration] = useState(false);
+  const blankIntegrationForm = (): CreateGitIntegrationData => ({
+    workspace: workspaceId,
+    provider: 'github',
+    repo_url: '',
+    webhook_secret: '',
+  });
+  const [integrationForm, setIntegrationForm] = useState<CreateGitIntegrationData>(blankIntegrationForm);
 
   // Reset to Projects tab if current tab is hidden for guests
   useEffect(() => {
@@ -339,6 +360,9 @@ export const WorkspaceDetailPage = () => {
             <Tab value={3} icon={<Settings />} iconPosition="start" label="Settings" />
           )}
           <Tab value={4} icon={<ContentCopy />} iconPosition="start" label={`Templates (${templates?.length || 0})`} />
+          {!isCurrentUserGuest && (
+            <Tab value={5} icon={<GitHubIcon />} iconPosition="start" label={`Integrations (${gitIntegrations?.length || 0})`} />
+          )}
         </Tabs>
 
         {/* Projects Tab */}
@@ -746,6 +770,143 @@ export const WorkspaceDetailPage = () => {
                       }}
                     >
                       Create Template
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            )}
+          </Box>
+        </TabPanel>
+
+        {/* ── Integrations Tab ── */}
+        <TabPanel value={tabValue} index={5}>
+          <Box sx={{ px: 3 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="h6" fontWeight={600}>Git Integrations</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Connect GitHub or GitLab repos. Mention tasks as <code>[CUR-123]</code> in commits/PRs to auto-link them.
+                </Typography>
+              </Box>
+              <Button startIcon={<Add />} variant="contained" onClick={() => setShowAddIntegration(true)}>
+                Add Integration
+              </Button>
+            </Stack>
+
+            {gitIntegrations && gitIntegrations.length > 0 ? (
+              <Stack spacing={1.5} sx={{ mb: 3 }}>
+                {gitIntegrations.map((integration) => (
+                  <Paper key={integration.id} variant="outlined" sx={{ px: 2, py: 1.5 }}>
+                    <Stack direction="row" alignItems="flex-start" spacing={2}>
+                      <GitHubIcon color="action" sx={{ mt: 0.5 }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                          <Chip
+                            label={integration.provider === 'github' ? 'GitHub' : 'GitLab'}
+                            size="small"
+                            color={integration.provider === 'github' ? 'default' : 'warning'}
+                          />
+                          <Link href={integration.repo_url} target="_blank" rel="noopener" variant="body2" fontWeight={600}
+                            sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            {integration.repo_url}
+                            <OpenInNew sx={{ fontSize: 14 }} />
+                          </Link>
+                        </Stack>
+                        <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.75 }}>
+                          <Typography variant="caption" color="text.secondary">Webhook URL:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                            {integration.webhook_url}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => { navigator.clipboard.writeText(integration.webhook_url); enqueueSnackbar('Webhook URL copied', { variant: 'success' }); }}
+                            sx={{ p: 0.25 }}
+                          >
+                            <ContentCopy sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Stack>
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={async () => {
+                          try {
+                            await deleteGitIntegration({ id: integration.id, workspaceId }).unwrap();
+                            enqueueSnackbar('Integration removed', { variant: 'success' });
+                          } catch {
+                            enqueueSnackbar('Failed to remove integration', { variant: 'error' });
+                          }
+                        }}
+                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : !showAddIntegration ? (
+              <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', mb: 3 }}>
+                <GitHubIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+                <Typography variant="body2" color="text.secondary">
+                  No integrations yet. Connect a repo to link commits and PRs to tasks.
+                </Typography>
+              </Paper>
+            ) : null}
+
+            {showAddIntegration && (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>Add Integration</Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Provider"
+                    select
+                    size="small"
+                    fullWidth
+                    value={integrationForm.provider}
+                    onChange={(e) => setIntegrationForm((f) => ({ ...f, provider: e.target.value as 'github' | 'gitlab' }))}
+                  >
+                    <MenuItem value="github">GitHub</MenuItem>
+                    <MenuItem value="gitlab">GitLab</MenuItem>
+                  </TextField>
+                  <TextField
+                    label="Repository URL"
+                    size="small"
+                    fullWidth
+                    placeholder="https://github.com/org/repo"
+                    value={integrationForm.repo_url}
+                    onChange={(e) => setIntegrationForm((f) => ({ ...f, repo_url: e.target.value }))}
+                    autoFocus
+                  />
+                  <TextField
+                    label="Webhook Secret (optional)"
+                    size="small"
+                    fullWidth
+                    type="password"
+                    placeholder="Leave blank to skip signature verification"
+                    value={integrationForm.webhook_secret || ''}
+                    onChange={(e) => setIntegrationForm((f) => ({ ...f, webhook_secret: e.target.value }))}
+                    helperText="Set a secret in GitHub webhook settings to secure this endpoint"
+                  />
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button size="small" onClick={() => { setShowAddIntegration(false); setIntegrationForm(blankIntegrationForm()); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!integrationForm.repo_url.trim()}
+                      onClick={async () => {
+                        try {
+                          await createGitIntegration(integrationForm).unwrap();
+                          enqueueSnackbar('Integration added', { variant: 'success' });
+                          setShowAddIntegration(false);
+                          setIntegrationForm(blankIntegrationForm());
+                        } catch {
+                          enqueueSnackbar('Failed to add integration', { variant: 'error' });
+                        }
+                      }}
+                    >
+                      Save
                     </Button>
                   </Stack>
                 </Stack>

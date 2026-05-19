@@ -61,6 +61,8 @@ import {
   Visibility,
   VisibilityOff,
   Repeat,
+  GitHub as GitHubIcon,
+  OpenInNew,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -93,6 +95,7 @@ import { useListTagsQuery, useAddTagToTaskMutation, useRemoveTagFromTaskMutation
 import { useGetTaskAttachmentsQuery, useUploadAttachmentMutation, useDeleteAttachmentMutation } from '../../api/attachmentApi';
 import { useGetTaskCustomFieldValuesQuery, useSetCustomFieldValueMutation } from '../../api/customFieldApi';
 import type { CustomFieldValue } from '../../api/customFieldApi';
+import { useListTaskGitLinksQuery, useDeleteTaskGitLinkMutation } from '../../api/gitApi';
 
 interface TaskDetailModalProps {
   taskId: number | null;
@@ -169,6 +172,8 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const [deleteChecklistItem] = useDeleteChecklistItemMutation();
 
   const currentUser = useSelector((state: RootState) => selectUser(state));
+  const { data: gitLinks } = useListTaskGitLinksQuery(taskId!, { skip: !taskId });
+  const [deleteGitLink] = useDeleteTaskGitLinkMutation();
   const [watchTask, { isLoading: watching }] = useWatchTaskMutation();
   const [unwatchTask, { isLoading: unwatching }] = useUnwatchTaskMutation();
   const isWatching = !!(currentUser && task?.watchers_details?.some((w) => w.id === currentUser.id));
@@ -846,6 +851,7 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                     <Tab icon={<CommentIcon fontSize="small" />} iconPosition="start" label="Comments" />
                     <Tab icon={<History fontSize="small" />} iconPosition="start" label="Activity" />
                     <Tab icon={<AttachFile fontSize="small" />} iconPosition="start" label="Attachments" />
+                    <Tab icon={<GitHubIcon fontSize="small" />} iconPosition="start" label={`Git Links${gitLinks && gitLinks.length > 0 ? ` (${gitLinks.length})` : ''}`} />
                   </Tabs>
 
                   {/* Comments Tab */}
@@ -1078,6 +1084,66 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                       ) : (
                         <Typography variant="body2" color="text.secondary">
                           No attachments yet. Upload files to share with the team.
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+
+                  {/* Git Links Tab */}
+                  {tabValue === 3 && (
+                    <Box>
+                      {gitLinks && gitLinks.length > 0 ? (
+                        <List dense>
+                          {gitLinks.map((link) => (
+                            <ListItem
+                              key={link.id}
+                              secondaryAction={
+                                <IconButton edge="end" size="small"
+                                  onClick={async () => {
+                                    try {
+                                      await deleteGitLink({ id: link.id, taskId: taskId! }).unwrap();
+                                    } catch {
+                                      enqueueSnackbar('Failed to remove link', { variant: 'error' });
+                                    }
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              }
+                              sx={{ borderRadius: 1, mb: 0.5, bgcolor: (theme) => alpha(theme.palette.grey[500], 0.05) }}
+                            >
+                              <ListItemIcon sx={{ minWidth: 36 }}>
+                                <GitHubIcon fontSize="small" color="action" />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={
+                                  <Stack direction="row" alignItems="center" spacing={1}>
+                                    <Chip
+                                      label={link.status}
+                                      size="small"
+                                      color={link.status === 'merged' ? 'success' : link.status === 'closed' ? 'default' : 'primary'}
+                                      sx={{ height: 18, fontSize: '0.65rem' }}
+                                    />
+                                    {link.pr_url ? (
+                                      <Link href={link.pr_url} target="_blank" rel="noopener" variant="body2" underline="hover"
+                                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        {link.pr_title || `PR #${link.pr_number}`}
+                                        <OpenInNew sx={{ fontSize: 12 }} />
+                                      </Link>
+                                    ) : (
+                                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                                        {link.commit_sha.slice(0, 8)} — {link.pr_title?.slice(0, 60)}
+                                      </Typography>
+                                    )}
+                                  </Stack>
+                                }
+                              />
+                            </ListItem>
+                          ))}
+                        </List>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          No Git links yet. Mention <code>[CUR-{taskId}]</code> in a commit message or PR to link it here.
                         </Typography>
                       )}
                     </Box>

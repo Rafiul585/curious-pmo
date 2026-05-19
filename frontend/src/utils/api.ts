@@ -93,6 +93,8 @@ export const api = createApi({
     'Automation',
     'Goal',
     'Template',
+    'GitIntegration',
+    'TaskGitLink',
   ],
   endpoints: () => ({}),
 });
