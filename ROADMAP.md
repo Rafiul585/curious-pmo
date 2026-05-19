@@ -869,7 +869,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D10 — Import from Other Tools
+## [x] D10 — Import from Other Tools
 
 **Why:** New teams switching from Jira, Trello, or Asana have to manually recreate all their work. Import unlocks adoption.
 
