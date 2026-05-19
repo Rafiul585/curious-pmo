@@ -41,6 +41,8 @@ export interface Task {
   subtasks_done?: number;
   tags?: number[];
   tags_details?: Tag[];
+  watcher_count?: number;
+  watchers_details?: TaskUser[];
   created_at?: string;
   updated_at?: string;
 }
@@ -273,6 +275,16 @@ export const taskApi = api.injectEndpoints({
       },
       providesTags: (_result, _error, parentId) => [{ type: 'Task' as const, id: `subtasks-${parentId}` }, 'Task'],
     }),
+
+    watchTask: build.mutation<{ status: string; watcher_count: number }, number>({
+      query: (id) => ({ url: `/tasks/${id}/watch/`, method: 'POST' }),
+      invalidatesTags: (_result, _error, id) => [{ type: 'Task', id }],
+    }),
+
+    unwatchTask: build.mutation<{ status: string; watcher_count: number }, number>({
+      query: (id) => ({ url: `/tasks/${id}/unwatch/`, method: 'POST' }),
+      invalidatesTags: (_result, _error, id) => [{ type: 'Task', id }],
+    }),
   }),
 });
 
@@ -295,4 +307,6 @@ export const {
   useGetTaskTimeLogsQuery,
   useLogTimeMutation,
   useListSubtasksQuery,
+  useWatchTaskMutation,
+  useUnwatchTaskMutation,
 } = taskApi;

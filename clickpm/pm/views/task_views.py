@@ -76,6 +76,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         old_state = AuditService.capture_state(serializer.instance)
         old_assignee = serializer.instance.assignee
         old_status = serializer.instance.status
+        old_due_date = serializer.instance.due_date
         task = serializer.save()
 
         # Log task update
@@ -93,6 +94,22 @@ class TaskViewSet(viewsets.ModelViewSet):
         # Notify about status change
         if task.status != old_status:
             NotificationService.notify_task_status_change(task, old_status, self.request.user)
+
+        # Notify watchers about due date change
+        if task.due_date != old_due_date:
+            verb = f'changed due date of task "{task.title}" to {task.due_date}'
+            notified_ids = {self.request.user.id}
+            for watcher in task.watchers.all():
+                if watcher.id not in notified_ids:
+                    NotificationService.create_notification(
+                        recipient=watcher,
+                        verb=verb,
+                        notification_type='general',
+                        actor=self.request.user,
+                        target=task,
+                        send_email=False,
+                    )
+                    notified_ids.add(watcher.id)
 
     def perform_destroy(self, instance):
         """Delete task and log audit event"""
@@ -365,6 +382,20 @@ class TaskViewSet(viewsets.ModelViewSet):
                 Task.objects.filter(id=task_id).update(position=position)
 
         return Response({'reordered': len(accessible_ids)})
+
+    @action(detail=True, methods=['POST'])
+    def watch(self, request, pk=None):
+        """POST /api/tasks/{id}/watch/ — current user starts watching this task."""
+        task = self.get_object()
+        task.watchers.add(request.user)
+        return Response({'status': 'watching', 'watcher_count': task.watchers.count()})
+
+    @action(detail=True, methods=['POST'])
+    def unwatch(self, request, pk=None):
+        """POST /api/tasks/{id}/unwatch/ — current user stops watching this task."""
+        task = self.get_object()
+        task.watchers.remove(request.user)
+        return Response({'status': 'unwatched', 'watcher_count': task.watchers.count()})
 
     @action(detail=True, methods=['GET'])
     def time_logs(self, request, pk=None):

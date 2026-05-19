@@ -53,6 +53,7 @@ import {
   Settings,
   Circle,
   FileDownload,
+  Visibility,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -752,6 +753,15 @@ export const ProjectDetailPage = () => {
                                 sx={{ bgcolor: tag.color, color: 'white', fontSize: '0.65rem', height: 20 }}
                               />
                             ))}
+                            {(task.watcher_count ?? 0) > 0 && (
+                              <Chip
+                                icon={<Visibility sx={{ fontSize: '0.75rem !important' }} />}
+                                label={task.watcher_count}
+                                size="small"
+                                variant="outlined"
+                                sx={{ fontSize: '0.65rem', height: 20 }}
+                              />
+                            )}
                           </Stack>
                         </Stack>
                       </Paper>

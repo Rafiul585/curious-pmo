@@ -32,6 +32,7 @@ class TaskSerializer(serializers.ModelSerializer):
     subtask_count = serializers.SerializerMethodField()
     subtasks_done = serializers.SerializerMethodField()
     tags_details = TagSerializer(source='tags', many=True, read_only=True)
+    watcher_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -42,6 +43,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'due_date', 'estimated_hours', 'actual_hours', 'parent',
             'tags', 'tags_details',
             'dependencies', 'is_blocked', 'subtask_count', 'subtasks_done',
+            'watcher_count',
             'created_at', 'updated_at'
         ]
 
@@ -56,6 +58,9 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_subtasks_done(self, obj) -> int:
         return obj.subtasks.filter(status='Done').count()
+
+    def get_watcher_count(self, obj) -> int:
+        return obj.watchers.count()
 
 
 class TaskDetailSerializer(serializers.ModelSerializer):
@@ -71,6 +76,8 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     subtask_count = serializers.SerializerMethodField()
     subtasks_done = serializers.SerializerMethodField()
     tags_details = TagSerializer(source='tags', many=True, read_only=True)
+    watchers_details = UserMinimalSerializer(source='watchers', many=True, read_only=True)
+    watcher_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -83,6 +90,7 @@ class TaskDetailSerializer(serializers.ModelSerializer):
             'tags', 'tags_details',
             'dependencies', 'is_blocked',
             'subtasks', 'subtask_count', 'subtasks_done',
+            'watchers_details', 'watcher_count',
             'created_at', 'updated_at'
         ]
 
@@ -97,6 +105,9 @@ class TaskDetailSerializer(serializers.ModelSerializer):
 
     def get_subtasks_done(self, obj) -> int:
         return obj.subtasks.filter(status='Done').count()
+
+    def get_watcher_count(self, obj) -> int:
+        return obj.watchers.count()
 
     def get_sprint_details(self, obj):
         if obj.sprint:

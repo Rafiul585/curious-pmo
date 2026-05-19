@@ -57,6 +57,8 @@ import {
   RadioButtonUnchecked,
   DeleteOutline,
   PlaylistAdd,
+  Visibility,
+  VisibilityOff,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -69,7 +71,12 @@ import {
   useLogTimeMutation,
   useCreateTaskMutation,
   useListSubtasksQuery,
+  useWatchTaskMutation,
+  useUnwatchTaskMutation,
 } from '../../api/taskApi';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../store';
+import { selectUser } from '../../store/slices/authSlice';
 import { useGetTaskCommentsQuery, useCreateCommentMutation } from '../../api/commentApi';
 import {
   useListChecklistsQuery,
@@ -154,6 +161,26 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const [createChecklistItem] = useCreateChecklistItemMutation();
   const [updateChecklistItem] = useUpdateChecklistItemMutation();
   const [deleteChecklistItem] = useDeleteChecklistItemMutation();
+
+  const currentUser = useSelector((state: RootState) => selectUser(state));
+  const [watchTask, { isLoading: watching }] = useWatchTaskMutation();
+  const [unwatchTask, { isLoading: unwatching }] = useUnwatchTaskMutation();
+  const isWatching = !!(currentUser && task?.watchers_details?.some((w) => w.id === currentUser.id));
+
+  const handleToggleWatch = async () => {
+    if (!taskId) return;
+    try {
+      if (isWatching) {
+        await unwatchTask(taskId).unwrap();
+        enqueueSnackbar('Stopped watching task', { variant: 'info' });
+      } else {
+        await watchTask(taskId).unwrap();
+        enqueueSnackbar('Now watching task', { variant: 'success' });
+      }
+    } catch {
+      enqueueSnackbar('Failed to update watch status', { variant: 'error' });
+    }
+  };
 
   const workspaceId = project?.workspace as number | undefined;
   const { data: workspaceTags } = useListTagsQuery(
@@ -1269,6 +1296,43 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                           </Button>
                         </Box>
                       </Menu>
+                    </Box>
+
+                    {/* Watchers */}
+                    <Box>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between">
+                        <Typography variant="caption" color="text.secondary">
+                          Watchers {task.watcher_count != null && task.watcher_count > 0 ? `(${task.watcher_count})` : ''}
+                        </Typography>
+                        <Tooltip title={isWatching ? 'Unwatch' : 'Watch'}>
+                          <IconButton
+                            size="small"
+                            onClick={handleToggleWatch}
+                            disabled={watching || unwatching}
+                            color={isWatching ? 'primary' : 'default'}
+                          >
+                            {isWatching ? <Visibility fontSize="small" /> : <VisibilityOff fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                      {task.watchers_details && task.watchers_details.length > 0 ? (
+                        <AvatarGroup
+                          max={5}
+                          sx={{ mt: 0.5, justifyContent: 'flex-start', '& .MuiAvatar-root': { width: 26, height: 26, fontSize: '0.65rem' } }}
+                        >
+                          {task.watchers_details.map((w) => (
+                            <Tooltip key={w.id} title={w.first_name && w.last_name ? `${w.first_name} ${w.last_name}` : w.username}>
+                              <Avatar sx={{ bgcolor: 'secondary.light' }}>
+                                {w.username[0].toUpperCase()}
+                              </Avatar>
+                            </Tooltip>
+                          ))}
+                        </AvatarGroup>
+                      ) : (
+                        <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+                          No watchers yet
+                        </Typography>
+                      )}
                     </Box>
 
                     {/* Sprint */}

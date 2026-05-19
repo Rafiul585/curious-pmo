@@ -168,6 +168,22 @@ CuriousPMO Team
                 send_email=True,
             )
             notifications.append(n)
+            notified_ids.add(task.reporter.id)
+
+        # Notify watchers
+        for watcher in task.watchers.all():
+            if watcher.id in notified_ids:
+                continue
+            notified_ids.add(watcher.id)
+            n = NotificationService.create_notification(
+                recipient=watcher,
+                verb=verb,
+                notification_type='status_change',
+                actor=actor,
+                target=task,
+                send_email=False,
+            )
+            notifications.append(n)
 
         return notifications
 
@@ -239,6 +255,20 @@ CuriousPMO Team
                 )
                 notifications.append(notification)
                 notified_users.add(task.reporter.id)
+
+            # Notify watchers
+            for watcher in task.watchers.all():
+                if watcher.id not in notified_users:
+                    n = NotificationService.create_notification(
+                        recipient=watcher,
+                        verb=verb,
+                        notification_type='comment',
+                        actor=actor,
+                        target=task,
+                        send_email=False,
+                    )
+                    notifications.append(n)
+                    notified_users.add(watcher.id)
 
         return notifications
 

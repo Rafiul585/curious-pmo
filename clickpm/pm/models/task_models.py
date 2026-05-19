@@ -51,6 +51,7 @@ class Task(models.Model):
     actual_hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
 
     tags = models.ManyToManyField(Tag, blank=True, related_name='tasks')
+    watchers = models.ManyToManyField(User, blank=True, related_name='watched_tasks')
 
     position = models.PositiveIntegerField(default=0, db_index=True)
 
