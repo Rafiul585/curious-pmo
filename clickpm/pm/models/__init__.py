@@ -10,4 +10,5 @@ from .access_models import WorkspaceProjectAccess, RolePermission
 from .goal_models import Goal, GoalTarget
 from .template_models import TaskTemplate
 from .git_models import GitIntegration, TaskGitLink
+from .doc_models import Doc
 

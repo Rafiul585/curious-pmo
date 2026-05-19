@@ -57,6 +57,8 @@ import {
   Repeat,
   Bolt,
   BarChart as BarChartIcon,
+  Article,
+  OpenInNew,
 } from '@mui/icons-material';
 import { Bar, Line } from 'react-chartjs-2';
 import {
@@ -111,6 +113,7 @@ import {
 } from '../api/automationApi';
 import type { AutomationRule } from '../api/automationApi';
 import { useGetVelocityQuery, useGetCumulativeFlowQuery, useGetCycleTimeQuery } from '../api/dashboardApi';
+import { useListDocsQuery, useCreateDocMutation, useDeleteDocMutation } from '../api/docApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -222,6 +225,11 @@ export const ProjectDetailPage = () => {
   const { data: velocityData } = useGetVelocityQuery({ projectId }, { skip: tabValue !== 5 });
   const { data: cumulativeFlowData } = useGetCumulativeFlowQuery({ projectId }, { skip: tabValue !== 5 });
   const { data: cycleTimeData } = useGetCycleTimeQuery(projectId, { skip: tabValue !== 5 });
+  const { data: docs } = useListDocsQuery(projectId, { skip: tabValue !== 6 });
+  const [createDoc] = useCreateDocMutation();
+  const [deleteDocItem] = useDeleteDocMutation();
+  const [newDocTitle, setNewDocTitle] = useState('');
+  const [showNewDocForm, setShowNewDocForm] = useState(false);
   const [createAutomation] = useCreateAutomationMutation();
   const [updateAutomation] = useUpdateAutomationMutation();
   const [deleteAutomation] = useDeleteAutomationMutation();
@@ -490,6 +498,7 @@ export const ProjectDetailPage = () => {
           <Tab icon={<History />} iconPosition="start" label="Activity" />
           <Tab icon={<Settings />} iconPosition="start" label="Settings" />
           <Tab icon={<BarChartIcon />} iconPosition="start" label="Reports" />
+          <Tab icon={<Article />} iconPosition="start" label={`Docs${docs ? ` (${docs.length})` : ''}`} />
         </Tabs>
 
         {/* Overview Tab */}
@@ -1604,6 +1613,134 @@ export const ProjectDetailPage = () => {
                 )}
               </Box>
             </Stack>
+          </Box>
+        </TabPanel>
+
+        {/* Docs Tab */}
+        <TabPanel value={tabValue} index={6}>
+          <Box sx={{ px: 3 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+              <Typography variant="h6" fontWeight={600}>
+                Project Docs
+              </Typography>
+              <Button startIcon={<Add />} variant="contained" onClick={() => setShowNewDocForm(true)}>
+                New Doc
+              </Button>
+            </Stack>
+
+            {showNewDocForm && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <TextField
+                    autoFocus
+                    size="small"
+                    placeholder="Document title"
+                    value={newDocTitle}
+                    onChange={(e) => setNewDocTitle(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Escape') { setShowNewDocForm(false); setNewDocTitle(''); }
+                      if (e.key === 'Enter' && newDocTitle.trim()) {
+                        e.preventDefault();
+                        try {
+                          const doc = await createDoc({ project: projectId, title: newDocTitle.trim(), content: '' }).unwrap();
+                          setShowNewDocForm(false);
+                          setNewDocTitle('');
+                          enqueueSnackbar('Doc created', { variant: 'success' });
+                          navigate(`/projects/${projectId}/docs/${doc.id}`);
+                        } catch {
+                          enqueueSnackbar('Failed to create doc', { variant: 'error' });
+                        }
+                      }
+                    }}
+                    sx={{ flex: 1 }}
+                  />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={!newDocTitle.trim()}
+                    onClick={async () => {
+                      try {
+                        const doc = await createDoc({ project: projectId, title: newDocTitle.trim(), content: '' }).unwrap();
+                        setShowNewDocForm(false);
+                        setNewDocTitle('');
+                        enqueueSnackbar('Doc created', { variant: 'success' });
+                        navigate(`/projects/${projectId}/docs/${doc.id}`);
+                      } catch {
+                        enqueueSnackbar('Failed to create doc', { variant: 'error' });
+                      }
+                    }}
+                  >
+                    Create
+                  </Button>
+                  <Button size="small" onClick={() => { setShowNewDocForm(false); setNewDocTitle(''); }}>
+                    Cancel
+                  </Button>
+                </Stack>
+              </Paper>
+            )}
+
+            {docs && docs.length > 0 ? (
+              <Stack spacing={1}>
+                {docs.map((doc) => (
+                  <Paper
+                    key={doc.id}
+                    variant="outlined"
+                    sx={{
+                      px: 2,
+                      py: 1.5,
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: 'action.hover' },
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    onClick={() => navigate(`/projects/${projectId}/docs/${doc.id}`)}
+                  >
+                    <Article fontSize="small" color="action" sx={{ mr: 1.5, flexShrink: 0 }} />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" fontWeight={600} noWrap>
+                        {doc.title}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Updated {new Date(doc.updated_at).toLocaleDateString()}
+                        {doc.created_by_username && ` · ${doc.created_by_username}`}
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={0.5} flexShrink={0}>
+                      <IconButton
+                        size="small"
+                        component={RouterLink}
+                        to={`/projects/${projectId}/docs/${doc.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        title="Open doc"
+                      >
+                        <OpenInNew fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!window.confirm(`Delete "${doc.title}"?`)) return;
+                          try {
+                            await deleteDocItem({ id: doc.id, projectId }).unwrap();
+                            enqueueSnackbar('Doc deleted', { variant: 'success' });
+                          } catch {
+                            enqueueSnackbar('Failed to delete doc', { variant: 'error' });
+                          }
+                        }}
+                        title="Delete doc"
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : (
+              <Typography color="text.secondary">
+                No documents yet. Click "New Doc" to create the first one.
+              </Typography>
+            )}
           </Box>
         </TabPanel>
       </Paper>

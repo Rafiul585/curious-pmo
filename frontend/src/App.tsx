@@ -5,6 +5,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
+import { DocDetailPage } from './pages/DocDetailPage';
 import { TasksPage } from './pages/TasksPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { GanttPage } from './pages/GanttPage';
@@ -48,6 +49,7 @@ const App = () => (
       {/* Projects */}
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/:id" element={<ProjectDetailPage />} />
+      <Route path="/projects/:projectId/docs/:docId" element={<DocDetailPage />} />
 
       {/* Tasks */}
       <Route path="/tasks" element={<TasksPage />} />
