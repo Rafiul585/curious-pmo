@@ -823,7 +823,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D8 — Calendar Sync (Google / Outlook)
+## [x] D8 — Calendar Sync (Google / Outlook)
 
 **Why:** Task due dates should appear in the tools team members already live in — Google Calendar or Outlook.
 
