@@ -1,5 +1,6 @@
 import {
   Box,
+  Chip,
   Collapse,
   Drawer,
   List,
@@ -26,9 +27,11 @@ import {
   ExpandMore,
   People as PeopleIcon,
   EmojiEvents as GoalsIcon,
+  VisibilityOff as GuestIcon,
 } from '@mui/icons-material';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
+import { useGetMyMembershipsQuery } from '../../api/workspaceApi';
 
 interface NavItem {
   label: string;
@@ -77,6 +80,8 @@ export const NavSidebar = ({ mobileOpen, onClose }: NavSidebarProps) => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const { data: memberships } = useGetMyMembershipsQuery();
+  const isGuestOnly = memberships != null && memberships.length > 0 && memberships.every((m) => m.is_guest);
 
   const toggleMenu = (label: string) => {
     setOpenMenus((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -240,6 +245,16 @@ export const NavSidebar = ({ mobileOpen, onClose }: NavSidebarProps) => {
                     color: active ? 'primary.main' : 'text.primary',
                   }}
                 />
+                {navItem.label === 'Workspaces' && isGuestOnly && (
+                  <Chip
+                    icon={<GuestIcon sx={{ fontSize: '12px !important' }} />}
+                    label="Guest"
+                    size="small"
+                    color="warning"
+                    variant="outlined"
+                    sx={{ height: 18, fontSize: 10, '& .MuiChip-label': { px: 0.5 } }}
+                  />
+                )}
               </ListItemButton>
             );
           })}

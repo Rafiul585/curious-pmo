@@ -755,7 +755,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D5 — Guest / External User Access
+## [x] D5 — Guest / External User Access
 
 **Why:** Clients, contractors, and external reviewers need limited access to specific projects without full workspace membership.
 

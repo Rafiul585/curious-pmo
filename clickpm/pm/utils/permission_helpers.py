@@ -21,40 +21,46 @@ def get_accessible_projects(user):
     """
     Get all projects the user can view based on:
     1. Project Membership (always allowed)
-    2. Workspace Admin (sees all projects in workspace)
+    2. Workspace Admin/Owner (sees all projects in workspace) — not for guests
     3. Explicit WorkspaceProjectAccess grant
-    4. Public projects (backward compatibility / default behavior if no restrictions)
+    4. Public projects in non-guest workspaces
+
+    Guests (is_guest=True) can ONLY see projects via explicit WorkspaceProjectAccess grants.
     """
+    # Split guest vs non-guest memberships
+    guest_workspace_ids = WorkspaceMember.objects.filter(
+        user=user, is_guest=True
+    ).values_list('workspace_id', flat=True)
+
+    non_guest_workspace_ids = WorkspaceMember.objects.filter(
+        user=user, is_guest=False
+    ).values_list('workspace_id', flat=True)
+
     # 1. Projects where user is a direct member
     member_projects = Project.objects.filter(members=user)
-    
-    # 2. Projects in workspaces where user is owner or admin
+
+    # 2. Projects in workspaces where user is owner or admin (non-guest only)
     admin_workspaces = WorkspaceMember.objects.filter(
-        user=user, 
-        is_admin=True
+        user=user,
+        is_admin=True,
+        is_guest=False,
     ).values_list('workspace_id', flat=True)
-    
+
     owned_workspaces = Workspace.objects.filter(owner=user).values_list('id', flat=True)
-    
-    # Combine admin/owner workspaces
     all_admin_workspace_ids = set(admin_workspaces) | set(owned_workspaces)
-    
-    # 3. Projects with explicit access grants
+
+    # 3. Projects with explicit access grants (guests included)
     granted_project_ids = WorkspaceProjectAccess.objects.filter(
         workspace_member__user=user,
         can_view=True
     ).values_list('project_id', flat=True)
-    
-    # 4. Public projects in workspaces where user is a member
-    # Get all workspaces where user is a member (not necessarily admin/owner)
-    member_workspace_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-    
-    # Combine all conditions
+
+    # 4. Public projects in non-guest workspaces
     return Project.objects.filter(
         Q(id__in=member_projects) |
         Q(workspace__in=all_admin_workspace_ids) |
         Q(id__in=granted_project_ids) |
-        (Q(workspace__in=member_workspace_ids) & Q(visibility='public'))
+        (Q(workspace__in=non_guest_workspace_ids) & Q(visibility='public'))
     ).distinct()
 
 
@@ -82,11 +88,12 @@ def can_user_view_project(user, project):
     ).exists():
         return True
         
-    # 5. Public Project in User's Workspace
+    # 5. Public Project in User's Workspace (non-guest only)
     if project.visibility == 'public' and project.workspace:
         return WorkspaceMember.objects.filter(
             workspace=project.workspace,
-            user=user
+            user=user,
+            is_guest=False,
         ).exists()
         
     return False

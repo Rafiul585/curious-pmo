@@ -11,7 +11,7 @@ class WorkspaceMemberSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = WorkspaceMember
-        fields = ['id', 'user', 'user_id', 'role', 'joined_at', 'is_admin']
+        fields = ['id', 'user', 'user_id', 'role', 'joined_at', 'is_admin', 'is_guest']
         read_only_fields = ['id', 'joined_at']
 
 

@@ -47,6 +47,7 @@ class WorkspaceMember(models.Model):
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True)
     joined_at = models.DateTimeField(auto_now_add=True)
     is_admin = models.BooleanField(default=False)
+    is_guest = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('workspace', 'user')

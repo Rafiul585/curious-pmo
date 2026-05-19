@@ -90,6 +90,7 @@ import {
   useGetFilterOptionsQuery,
   useGetFilteredOverviewQuery,
   DashboardFilters as DashboardFiltersType,
+  UpcomingDeadlineTask,
 } from '../api/dashboardApi';
 import { useListProjectsQuery } from '../api/projectApi';
 import { useGetProjectTimelineQuery, TimelineItem } from '../api/ganttApi';
@@ -917,7 +918,7 @@ const UpcomingDeadlinesReport = () => {
     return colors[priority] || '#9e9e9e';
   };
 
-  const renderTaskList = (tasks: typeof deadlines.tasks, title: string, color: string) => {
+  const renderTaskList = (tasks: UpcomingDeadlineTask[] | undefined, title: string, color: string) => {
     if (!tasks || tasks.length === 0) return null;
     return (
       <Box sx={{ mb: 2 }}>
@@ -1258,7 +1259,7 @@ const ActiveSprintsReport = () => {
                       <Typography variant="caption" color="text.secondary">{sprint.project_name}</Typography>
                     )}
                   </Box>
-                  {sprint.days_remaining !== null && (
+                  {sprint.days_remaining != null && (
                     <Chip
                       label={sprint.days_remaining >= 0 ? `${sprint.days_remaining}d left` : `${Math.abs(sprint.days_remaining)}d over`}
                       size="small"
@@ -1749,7 +1750,7 @@ const MilestoneProgressReport = () => {
                     {milestone.is_overdue && (
                       <Chip label="Overdue" size="small" color="error" sx={{ height: 18, fontSize: '0.65rem' }} />
                     )}
-                    {milestone.days_remaining !== null && !milestone.is_overdue && (
+                    {milestone.days_remaining != null && !milestone.is_overdue && (
                       <Chip
                         label={`${milestone.days_remaining}d left`}
                         size="small"

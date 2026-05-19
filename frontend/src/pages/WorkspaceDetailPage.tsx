@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import { selectUser } from '../store/slices/authSlice';
 import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -47,6 +49,7 @@ import {
   Search,
   CheckCircle,
   ContentCopy,
+  VisibilityOff,
 } from '@mui/icons-material';
 import { Checkbox, FormControlLabel } from '@mui/material';
 import { useSnackbar } from 'notistack';
@@ -58,6 +61,7 @@ import {
   useAddWorkspaceMemberMutation,
   useRemoveWorkspaceMemberMutation,
   useGetWorkspaceProjectsQuery,
+  useGetMyMembershipsQuery,
 } from '../api/workspaceApi';
 import { useListUsersQuery } from '../api/userApi';
 import { useCreateProjectMutation } from '../api/projectApi';
@@ -100,9 +104,14 @@ export const WorkspaceDetailPage = () => {
   const [projectForm, setProjectForm] = useState({ name: '', description: '', visibility: 'private', start_date: '', end_date: '' });
   const [settingsForm, setSettingsForm] = useState({ name: '', description: '' });
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [inviteAsGuest, setInviteAsGuest] = useState(false);
+
+  const currentUser = useSelector(selectUser);
+  const { data: memberships } = useGetMyMembershipsQuery();
+  const isCurrentUserGuest = memberships?.find((m) => m.workspace_id === workspaceId)?.is_guest ?? false;
 
   const { data: workspace, isLoading, error } = useGetWorkspaceQuery(workspaceId);
-  const { data: members } = useGetWorkspaceMembersQuery(workspaceId);
+  const { data: members } = useGetWorkspaceMembersQuery(workspaceId, { skip: isCurrentUserGuest });
   const { data: projects } = useGetWorkspaceProjectsQuery(workspaceId);
   const { data: allUsers } = useListUsersQuery();
 
@@ -123,6 +132,13 @@ export const WorkspaceDetailPage = () => {
     checklist_items_text: '',
   });
   const [templateForm, setTemplateForm] = useState(blankTemplateForm);
+
+  // Reset to Projects tab if current tab is hidden for guests
+  useEffect(() => {
+    if (isCurrentUserGuest && (tabValue === 1 || tabValue === 3)) {
+      setTabValue(0);
+    }
+  }, [isCurrentUserGuest, tabValue]);
 
   // Initialize settings form when workspace loads
   useEffect(() => {
@@ -174,11 +190,12 @@ export const WorkspaceDetailPage = () => {
     }
   };
 
-  const handleAddMember = async (userId: number, isAdmin: boolean = false) => {
+  const handleAddMember = async (userId: number, isAdmin: boolean = false, isGuest: boolean = false) => {
     try {
-      await addMember({ workspaceId, userId, isAdmin }).unwrap();
-      enqueueSnackbar('Member added successfully', { variant: 'success' });
+      await addMember({ workspaceId, userId, isAdmin, isGuest }).unwrap();
+      enqueueSnackbar(isGuest ? 'Guest added successfully' : 'Member added successfully', { variant: 'success' });
       setMemberDialogOpen(false);
+      setInviteAsGuest(false);
     } catch {
       enqueueSnackbar('Failed to add member', { variant: 'error' });
     }
@@ -313,11 +330,15 @@ export const WorkspaceDetailPage = () => {
       {/* Tabs */}
       <Paper sx={{ borderRadius: 2 }}>
         <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
-          <Tab icon={<Folder />} iconPosition="start" label={`Projects (${projects?.length || 0})`} />
-          <Tab icon={<People />} iconPosition="start" label={`Members (${members?.length || 0})`} />
-          <Tab icon={<History />} iconPosition="start" label="Activity" />
-          <Tab icon={<Settings />} iconPosition="start" label="Settings" />
-          <Tab icon={<ContentCopy />} iconPosition="start" label={`Templates (${templates?.length || 0})`} />
+          <Tab value={0} icon={<Folder />} iconPosition="start" label={`Projects (${projects?.length || 0})`} />
+          {!isCurrentUserGuest && (
+            <Tab value={1} icon={<People />} iconPosition="start" label={`Members (${members?.length || 0})`} />
+          )}
+          <Tab value={2} icon={<History />} iconPosition="start" label="Activity" />
+          {!isCurrentUserGuest && (
+            <Tab value={3} icon={<Settings />} iconPosition="start" label="Settings" />
+          )}
+          <Tab value={4} icon={<ContentCopy />} iconPosition="start" label={`Templates (${templates?.length || 0})`} />
         </Tabs>
 
         {/* Projects Tab */}
@@ -430,6 +451,16 @@ export const WorkspaceDetailPage = () => {
                                   label="Admin"
                                   size="small"
                                   color="secondary"
+                                  sx={{ height: 20 }}
+                                />
+                              )}
+                            {member.is_guest && (
+                                <Chip
+                                  icon={<VisibilityOff sx={{ fontSize: 14 }} />}
+                                  label="Guest"
+                                  size="small"
+                                  color="warning"
+                                  variant="outlined"
                                   sx={{ height: 20 }}
                                 />
                               )}
@@ -771,7 +802,7 @@ export const WorkspaceDetailPage = () => {
       </Dialog>
 
       {/* Add Member Dialog */}
-      <Dialog open={memberDialogOpen} onClose={() => { setMemberDialogOpen(false); setMemberSearchQuery(''); }} fullWidth maxWidth="sm">
+      <Dialog open={memberDialogOpen} onClose={() => { setMemberDialogOpen(false); setMemberSearchQuery(''); setInviteAsGuest(false); }} fullWidth maxWidth="sm">
         <DialogTitle>
           <Stack direction="row" alignItems="center" spacing={1}>
             <PersonAdd color="primary" />
@@ -779,9 +810,31 @@ export const WorkspaceDetailPage = () => {
           </Stack>
         </DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Search and select users to add to this workspace.
-          </Typography>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Search and select users to add to this workspace.
+            </Typography>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  checked={inviteAsGuest}
+                  onChange={(e) => setInviteAsGuest(e.target.checked)}
+                />
+              }
+              label={
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <VisibilityOff sx={{ fontSize: 16, color: inviteAsGuest ? 'warning.main' : 'text.disabled' }} />
+                  <Typography variant="body2">Invite as Guest</Typography>
+                </Stack>
+              }
+            />
+          </Stack>
+          {inviteAsGuest && (
+            <Alert severity="warning" sx={{ mb: 2 }} icon={<VisibilityOff fontSize="small" />}>
+              Guests can only see projects you explicitly grant them access to.
+            </Alert>
+          )}
 
           {/* Search Field */}
           <TextField
@@ -838,22 +891,36 @@ export const WorkspaceDetailPage = () => {
                           </Box>
                         </Stack>
                         <Stack direction="row" spacing={1}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => handleAddMember(user.id, false)}
-                          >
-                            Add Member
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            color="secondary"
-                            startIcon={<AdminPanelSettings sx={{ fontSize: 16 }} />}
-                            onClick={() => handleAddMember(user.id, true)}
-                          >
-                            Add Admin
-                          </Button>
+                          {inviteAsGuest ? (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="warning"
+                              startIcon={<VisibilityOff sx={{ fontSize: 16 }} />}
+                              onClick={() => handleAddMember(user.id, false, true)}
+                            >
+                              Add Guest
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => handleAddMember(user.id, false)}
+                              >
+                                Add Member
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                color="secondary"
+                                startIcon={<AdminPanelSettings sx={{ fontSize: 16 }} />}
+                                onClick={() => handleAddMember(user.id, true)}
+                              >
+                                Add Admin
+                              </Button>
+                            </>
+                          )}
                         </Stack>
                       </Stack>
                     </Box>
@@ -880,7 +947,7 @@ export const WorkspaceDetailPage = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setMemberDialogOpen(false); setMemberSearchQuery(''); }}>Close</Button>
+          <Button onClick={() => { setMemberDialogOpen(false); setMemberSearchQuery(''); setInviteAsGuest(false); }}>Close</Button>
         </DialogActions>
       </Dialog>
 

@@ -176,7 +176,7 @@ export const ProfilePage = () => {
                   fontWeight: 500,
                 }}
               >
-                {typeof user.role === 'string' ? user.role : user.role.name}
+                {user.role}
               </Typography>
             )}
 

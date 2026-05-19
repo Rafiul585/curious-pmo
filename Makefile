@@ -2,13 +2,29 @@
 # Requires: GNU Make, Git Bash (Windows) or any POSIX shell (Linux/macOS)
 #
 # Usage examples:
-#   make setup                          first-time setup
-#   make dev                            start both servers concurrently
+#   make setup                          first-time setup (local, no Docker)
+#   make dev                            start backend + frontend dev servers locally
 #   make test                           run all backend tests
 #   make test TEST=pm.tests.test_task_views   run one test module
 #   make migrations APP=pm NAME=add_tags      generate named migration
 #   make branch NAME=C1-subtasks        create feature/C1-subtasks from dev
 #   make merge                          merge current feature branch into dev
+#
+# Docker — development:
+#   make docker-full                    start ALL containers: backend (dev) + frontend + PostgreSQL
+#   make docker-up                      start backend containers only (PostgreSQL + Django dev server)
+#   make docker-up-fe                   build + start frontend container  →  http://localhost:5173
+#   make docker-logs                    follow backend container logs
+#   make docker-logs-fe                 follow frontend container logs
+#   make docker-shell                   open a shell inside the running backend container
+#   make docker-down                    stop and remove backend containers
+#   make docker-down-fe                 stop frontend container
+#
+# Docker — production:
+#   make prod-up                        start production containers (gunicorn + PostgreSQL)
+#   make prod-logs                      follow production container logs
+#   make prod-shell                     open a shell inside the production backend container
+#   make prod-down                      stop production containers
 
 SHELL  := /bin/bash
 BE     := clickpm
