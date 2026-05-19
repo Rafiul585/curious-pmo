@@ -401,7 +401,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C3 — Task Checklists
+## [x] C3 — Task Checklists
 
 **Why:** Most tasks have a list of acceptance criteria or steps. Users currently paste these into the description and manually track them.
 
