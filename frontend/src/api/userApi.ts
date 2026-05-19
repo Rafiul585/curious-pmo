@@ -139,6 +139,18 @@ export const userApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Me', 'Notification'],
     }),
+
+    // Get iCal token + feed URL
+    getCalendarToken: build.query<{ ical_token: string; ics_url: string }, void>({
+      query: () => ({ url: '/users/calendar-token/' }),
+      providesTags: [{ type: 'Me', id: 'calendar-token' }],
+    }),
+
+    // Generate / regenerate iCal token
+    generateCalendarToken: build.mutation<{ ical_token: string; ics_url: string }, void>({
+      query: () => ({ url: '/users/calendar-token/', method: 'POST' }),
+      invalidatesTags: [{ type: 'Me', id: 'calendar-token' }],
+    }),
   }),
 });
 
@@ -153,4 +165,6 @@ export const {
   useRequestPasswordResetMutation,
   useConfirmPasswordResetMutation,
   useLogoutMutation,
+  useGetCalendarTokenQuery,
+  useGenerateCalendarTokenMutation,
 } = userApi;
