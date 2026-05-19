@@ -56,7 +56,22 @@ import {
   Visibility,
   Repeat,
   Bolt,
+  BarChart as BarChartIcon,
 } from '@mui/icons-material';
+import { Bar, Line } from 'react-chartjs-2';
+import {
+  Chart,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Tooltip as ChartTooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
+
+Chart.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ChartTooltip, Legend, Filler);
 import { Switch, FormControlLabel } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import {
@@ -95,6 +110,7 @@ import {
   useDeleteAutomationMutation,
 } from '../api/automationApi';
 import type { AutomationRule } from '../api/automationApi';
+import { useGetVelocityQuery, useGetCumulativeFlowQuery, useGetCycleTimeQuery } from '../api/dashboardApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -203,6 +219,9 @@ export const ProjectDetailPage = () => {
   });
 
   const { data: automations } = useListAutomationsQuery(projectId);
+  const { data: velocityData } = useGetVelocityQuery({ projectId }, { skip: tabValue !== 5 });
+  const { data: cumulativeFlowData } = useGetCumulativeFlowQuery({ projectId }, { skip: tabValue !== 5 });
+  const { data: cycleTimeData } = useGetCycleTimeQuery(projectId, { skip: tabValue !== 5 });
   const [createAutomation] = useCreateAutomationMutation();
   const [updateAutomation] = useUpdateAutomationMutation();
   const [deleteAutomation] = useDeleteAutomationMutation();
@@ -470,6 +489,7 @@ export const ProjectDetailPage = () => {
           <Tab icon={<People />} iconPosition="start" label={`Members (${project.members?.length || 0})`} />
           <Tab icon={<History />} iconPosition="start" label="Activity" />
           <Tab icon={<Settings />} iconPosition="start" label="Settings" />
+          <Tab icon={<BarChartIcon />} iconPosition="start" label="Reports" />
         </Tabs>
 
         {/* Overview Tab */}
@@ -1442,6 +1462,148 @@ export const ProjectDetailPage = () => {
                 Add Automation Rule
               </Button>
             )}
+          </Box>
+        </TabPanel>
+
+        {/* Reports Tab */}
+        <TabPanel value={tabValue} index={5}>
+          <Box sx={{ px: 3 }}>
+            <Stack spacing={4}>
+              {/* Velocity Chart */}
+              <Box>
+                <Typography variant="h6" fontWeight={600} sx={{ mb: 0.5 }}>Sprint Velocity</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Planned vs completed tasks per sprint. Average: {velocityData?.avg_completed_tasks ?? '—'} tasks/sprint ({velocityData?.avg_completion_rate ?? '—'}%).
+                </Typography>
+                {velocityData && velocityData.sprints.length > 0 ? (
+                  <Box sx={{ maxHeight: 280 }}>
+                    <Bar
+                      data={{
+                        labels: velocityData.sprints.map((s) => s.sprint_name),
+                        datasets: [
+                          {
+                            label: 'Planned',
+                            data: velocityData.sprints.map((s) => s.planned_tasks),
+                            backgroundColor: 'rgba(102,126,234,0.25)',
+                            borderColor: 'rgba(102,126,234,0.8)',
+                            borderWidth: 1,
+                          },
+                          {
+                            label: 'Completed',
+                            data: velocityData.sprints.map((s) => s.completed_tasks),
+                            backgroundColor: 'rgba(72,199,142,0.7)',
+                            borderColor: 'rgba(72,199,142,1)',
+                            borderWidth: 1,
+                          },
+                        ],
+                      }}
+                      options={{
+                        responsive: true,
+                        plugins: { legend: { position: 'top' as const } },
+                        scales: {
+                          y: { beginAtZero: true, title: { display: true, text: 'Tasks' }, ticks: { stepSize: 1 } },
+                        },
+                      }}
+                    />
+                  </Box>
+                ) : (
+                  <Typography color="text.secondary">No sprint data available.</Typography>
+                )}
+              </Box>
+
+              <Divider />
+
+              {/* Cumulative Flow */}
+              <Box>
+                <Typography variant="h6" fontWeight={600} sx={{ mb: 0.5 }}>Cumulative Flow (last 60 days)</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Total tasks created vs completed over time.
+                </Typography>
+                {cumulativeFlowData && cumulativeFlowData.dates.length > 0 ? (
+                  <Box sx={{ maxHeight: 280 }}>
+                    <Line
+                      data={{
+                        labels: cumulativeFlowData.dates.map((d) =>
+                          new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                        ),
+                        datasets: cumulativeFlowData.series.map((s, i) => ({
+                          label: s.label,
+                          data: s.data,
+                          borderColor: i === 0 ? 'rgba(102,126,234,0.9)' : 'rgba(72,199,142,0.9)',
+                          backgroundColor: i === 0 ? 'rgba(102,126,234,0.15)' : 'rgba(72,199,142,0.2)',
+                          fill: true,
+                          borderWidth: 2,
+                          pointRadius: 0,
+                          tension: 0.3,
+                        })),
+                      }}
+                      options={{
+                        responsive: true,
+                        plugins: { legend: { position: 'top' as const } },
+                        scales: {
+                          y: { beginAtZero: true, title: { display: true, text: 'Tasks (cumulative)' } },
+                          x: { ticks: { maxTicksLimit: 10 } },
+                        },
+                      }}
+                    />
+                  </Box>
+                ) : (
+                  <Typography color="text.secondary">No task data available.</Typography>
+                )}
+              </Box>
+
+              <Divider />
+
+              {/* Cycle Time */}
+              <Box>
+                <Typography variant="h6" fontWeight={600} sx={{ mb: 0.5 }}>Cycle Time</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Average time from task creation to completion ({cycleTimeData?.total_done_tasks ?? 0} done tasks analysed).
+                </Typography>
+                {cycleTimeData ? (
+                  <Stack spacing={3}>
+                    <Chip
+                      icon={<Speed />}
+                      label={`Avg cycle time: ${cycleTimeData.avg_cycle_time_days} days`}
+                      color={
+                        cycleTimeData.avg_cycle_time_days === 0 ? 'default' :
+                        cycleTimeData.avg_cycle_time_days <= 3 ? 'success' :
+                        cycleTimeData.avg_cycle_time_days <= 10 ? 'primary' : 'warning'
+                      }
+                      sx={{ alignSelf: 'flex-start', fontWeight: 600, fontSize: '0.9rem', px: 1 }}
+                    />
+                    {cycleTimeData.total_done_tasks > 0 && (
+                      <Box sx={{ maxHeight: 220 }}>
+                        <Bar
+                          data={{
+                            labels: cycleTimeData.histogram.map((b) => b.label),
+                            datasets: [
+                              {
+                                label: 'Tasks',
+                                data: cycleTimeData.histogram.map((b) => b.count),
+                                backgroundColor: 'rgba(102,126,234,0.6)',
+                                borderColor: 'rgba(102,126,234,0.9)',
+                                borderWidth: 1,
+                              },
+                            ],
+                          }}
+                          options={{
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                              y: { beginAtZero: true, title: { display: true, text: 'Tasks' }, ticks: { stepSize: 1 } },
+                              x: { title: { display: true, text: 'Cycle time bucket' } },
+                            },
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </Stack>
+                ) : (
+                  <Typography color="text.secondary">No completed tasks to analyse.</Typography>
+                )}
+              </Box>
+            </Stack>
           </Box>
         </TabPanel>
       </Paper>

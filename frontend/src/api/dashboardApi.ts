@@ -328,6 +328,44 @@ export interface ProjectOverview {
   }[];
 }
 
+// Velocity & Sprint Reporting (D7)
+export interface VelocitySprintData {
+  sprint_id: number;
+  sprint_name: string;
+  start_date?: string;
+  end_date?: string;
+  planned_tasks: number;
+  completed_tasks: number;
+  completion_rate: number;
+}
+
+export interface VelocityData {
+  sprints: VelocitySprintData[];
+  avg_completed_tasks: number;
+  avg_completion_rate: number;
+}
+
+export interface CumulativeFlowSeries {
+  label: string;
+  data: number[];
+}
+
+export interface CumulativeFlowData {
+  dates: string[];
+  series: CumulativeFlowSeries[];
+}
+
+export interface CycleTimeHistogramBucket {
+  label: string;
+  count: number;
+}
+
+export interface CycleTimeData {
+  avg_cycle_time_days: number;
+  total_done_tasks: number;
+  histogram: CycleTimeHistogramBucket[];
+}
+
 export const dashboardApi = api.injectEndpoints({
   endpoints: (build) => ({
     // Get user dashboard overview
@@ -482,6 +520,33 @@ export const dashboardApi = api.injectEndpoints({
       }),
       providesTags: ['Dashboard', 'Task', 'Project'],
     }),
+
+    // Velocity (D7)
+    getVelocity: build.query<VelocityData, { projectId: number; lastNSprints?: number }>({
+      query: ({ projectId, lastNSprints = 6 }) => ({
+        url: '/dashboard/velocity/',
+        params: { project: projectId, last_n_sprints: lastNSprints },
+      }),
+      providesTags: (_r, _e, { projectId }) => [{ type: 'Dashboard', id: `velocity-${projectId}` }],
+    }),
+
+    // Cumulative Flow (D7)
+    getCumulativeFlow: build.query<CumulativeFlowData, { projectId: number; days?: number }>({
+      query: ({ projectId, days = 60 }) => ({
+        url: '/dashboard/cumulative_flow/',
+        params: { project: projectId, days },
+      }),
+      providesTags: (_r, _e, { projectId }) => [{ type: 'Dashboard', id: `cumflow-${projectId}` }],
+    }),
+
+    // Cycle Time (D7)
+    getCycleTime: build.query<CycleTimeData, number>({
+      query: (projectId) => ({
+        url: '/dashboard/cycle_time/',
+        params: { project: projectId },
+      }),
+      providesTags: (_r, _e, projectId) => [{ type: 'Dashboard', id: `cycletime-${projectId}` }],
+    }),
   }),
 });
 
@@ -507,4 +572,7 @@ export const {
   useGetFilterOptionsQuery,
   useGetFilteredOverviewQuery,
   useGetWorkloadCalendarQuery,
+  useGetVelocityQuery,
+  useGetCumulativeFlowQuery,
+  useGetCycleTimeQuery,
 } = dashboardApi;
