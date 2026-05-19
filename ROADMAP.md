@@ -463,7 +463,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C5 — Tags on Tasks (Proper M2M)
+## [x] C5 — Tags on Tasks (Proper M2M)
 
 **Why:** Cross-project filtering (e.g., "show all `bug` tasks across every project") is impossible with the current text-only `tags` field on Project.
 
