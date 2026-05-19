@@ -31,6 +31,14 @@ import {
   TextField,
   Typography,
   alpha,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  Select,
+  InputLabel,
+  FormControl,
 } from '@mui/material';
 import {
   Edit,
@@ -59,6 +67,9 @@ import {
   BarChart as BarChartIcon,
   Article,
   OpenInNew,
+  Upload,
+  CheckCircle,
+  ErrorOutline,
 } from '@mui/icons-material';
 import { Bar, Line } from 'react-chartjs-2';
 import {
@@ -114,6 +125,7 @@ import {
 import type { AutomationRule } from '../api/automationApi';
 import { useGetVelocityQuery, useGetCumulativeFlowQuery, useGetCycleTimeQuery } from '../api/dashboardApi';
 import { useListDocsQuery, useCreateDocMutation, useDeleteDocMutation } from '../api/docApi';
+import { useCsvImportMutation, TASK_FIELDS } from '../api/importApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -230,6 +242,18 @@ export const ProjectDetailPage = () => {
   const [deleteDocItem] = useDeleteDocMutation();
   const [newDocTitle, setNewDocTitle] = useState('');
   const [showNewDocForm, setShowNewDocForm] = useState(false);
+
+  // Import state
+  const [csvImport] = useCsvImportMutation();
+  const [importStep, setImportStep] = useState<'upload' | 'map' | 'result'>('upload');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importHeaders, setImportHeaders] = useState<string[]>([]);
+  const [importPreview, setImportPreview] = useState<string[][]>([]);
+  const [importMapping, setImportMapping] = useState<Record<string, string>>({});
+  const [importSprintId, setImportSprintId] = useState<string>('');
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const [importing, setImporting] = useState(false);
+
   const [createAutomation] = useCreateAutomationMutation();
   const [updateAutomation] = useUpdateAutomationMutation();
   const [deleteAutomation] = useDeleteAutomationMutation();
@@ -1470,6 +1494,229 @@ export const ProjectDetailPage = () => {
               <Button startIcon={<Add />} variant="outlined" onClick={() => setShowAddAutomation(true)}>
                 Add Automation Rule
               </Button>
+            )}
+
+            <Divider sx={{ my: 4 }} />
+
+            {/* ── CSV Import ── */}
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+              <Upload color="primary" />
+              <Typography variant="h6" fontWeight={600}>Import Tasks from CSV</Typography>
+            </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Upload a CSV file exported from Jira, Trello, Asana, or any spreadsheet. Map columns to task fields, preview the first rows, then confirm.
+            </Typography>
+
+            {importStep === 'upload' && (
+              <Stack spacing={2} sx={{ maxWidth: 520 }}>
+                {/* Sprint selector */}
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Target Sprint</InputLabel>
+                  <Select
+                    label="Target Sprint"
+                    value={importSprintId}
+                    onChange={(e) => setImportSprintId(e.target.value)}
+                  >
+                    {milestones?.flatMap((m) => m.sprints ?? []).map((s) => (
+                      <MenuItem key={s.id} value={String(s.id)}>{s.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {/* File picker */}
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<Upload />}
+                  sx={{ alignSelf: 'flex-start' }}
+                >
+                  {importFile ? importFile.name : 'Choose CSV file'}
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    hidden
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setImportFile(file);
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        const text = ev.target?.result as string;
+                        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(Boolean);
+                        if (lines.length === 0) return;
+                        const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
+                        const rows = lines.slice(1, 6).map((l) =>
+                          l.split(',').map((c) => c.trim().replace(/^"|"$/g, ''))
+                        );
+                        setImportHeaders(headers);
+                        setImportPreview(rows);
+                        // Auto-map by guessing common column names
+                        const auto: Record<string, string> = {};
+                        headers.forEach((h) => {
+                          const lower = h.toLowerCase();
+                          if (/title|name|summary|task/.test(lower)) auto[h] = 'title';
+                          else if (/desc/.test(lower)) auto[h] = 'description';
+                          else if (/status|state/.test(lower)) auto[h] = 'status';
+                          else if (/priority/.test(lower)) auto[h] = 'priority';
+                          else if (/assign|email/.test(lower)) auto[h] = 'assignee_email';
+                          else if (/due|deadline/.test(lower)) auto[h] = 'due_date';
+                          else if (/tag|label/.test(lower)) auto[h] = 'tags';
+                          else auto[h] = 'skip';
+                        });
+                        setImportMapping(auto);
+                      };
+                      reader.readAsText(file);
+                    }}
+                  />
+                </Button>
+
+                {importFile && importHeaders.length > 0 && (
+                  <Button
+                    variant="contained"
+                    disabled={!importSprintId}
+                    onClick={() => setImportStep('map')}
+                  >
+                    Next: Map Columns
+                  </Button>
+                )}
+                {importFile && !importSprintId && (
+                  <Typography variant="caption" color="warning.main">Select a target sprint first.</Typography>
+                )}
+              </Stack>
+            )}
+
+            {importStep === 'map' && importFile && (
+              <Stack spacing={3} sx={{ maxWidth: 700 }}>
+                <Typography variant="subtitle2" fontWeight={600}>Map CSV Columns → Task Fields</Typography>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>CSV Column</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Maps to</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Preview</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {importHeaders.map((header) => (
+                      <TableRow key={header}>
+                        <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{header}</TableCell>
+                        <TableCell>
+                          <Select
+                            size="small"
+                            value={importMapping[header] ?? 'skip'}
+                            onChange={(e) => setImportMapping((m) => ({ ...m, [header]: e.target.value }))}
+                            sx={{ minWidth: 160 }}
+                          >
+                            {TASK_FIELDS.map((f) => (
+                              <MenuItem key={f.value} value={f.value}>{f.label}</MenuItem>
+                            ))}
+                          </Select>
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary', maxWidth: 180 }}>
+                          {importPreview.map((row) => row[importHeaders.indexOf(header)]).filter(Boolean).slice(0, 2).join(', ')}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                <Typography variant="subtitle2" fontWeight={600}>Preview (first {importPreview.length} rows)</Typography>
+                <Box sx={{ overflowX: 'auto' }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        {importHeaders.map((h) => <TableCell key={h} sx={{ fontSize: '0.75rem', fontWeight: 600 }}>{h}</TableCell>)}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {importPreview.map((row, i) => (
+                        <TableRow key={i}>
+                          {importHeaders.map((_, ci) => (
+                            <TableCell key={ci} sx={{ fontSize: '0.75rem' }}>{row[ci] ?? ''}</TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Box>
+
+                <Stack direction="row" spacing={1}>
+                  <Button onClick={() => setImportStep('upload')}>Back</Button>
+                  <Button
+                    variant="contained"
+                    disabled={importing || !Object.values(importMapping).includes('title')}
+                    onClick={async () => {
+                      if (!importFile || !importSprintId) return;
+                      setImporting(true);
+                      try {
+                        const result = await csvImport({
+                          file: importFile,
+                          projectId,
+                          sprintId: Number(importSprintId),
+                          mapping: importMapping,
+                        }).unwrap();
+                        setImportResult(result);
+                        setImportStep('result');
+                      } catch {
+                        enqueueSnackbar('Import failed', { variant: 'error' });
+                      } finally {
+                        setImporting(false);
+                      }
+                    }}
+                  >
+                    {importing ? 'Importing…' : 'Confirm Import'}
+                  </Button>
+                </Stack>
+                {!Object.values(importMapping).includes('title') && (
+                  <Typography variant="caption" color="error">At least one column must be mapped to "Title".</Typography>
+                )}
+              </Stack>
+            )}
+
+            {importStep === 'result' && importResult && (
+              <Stack spacing={2} sx={{ maxWidth: 520 }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <CheckCircle color="success" />
+                  <Typography variant="subtitle1" fontWeight={600}>Import Complete</Typography>
+                </Stack>
+                <Stack direction="row" spacing={3}>
+                  <Box>
+                    <Typography variant="h4" fontWeight={700} color="success.main">{importResult.imported}</Typography>
+                    <Typography variant="body2" color="text.secondary">Tasks imported</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="h4" fontWeight={700} color="text.secondary">{importResult.skipped}</Typography>
+                    <Typography variant="body2" color="text.secondary">Rows skipped</Typography>
+                  </Box>
+                </Stack>
+                {importResult.errors.length > 0 && (
+                  <Box>
+                    <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
+                      <ErrorOutline fontSize="small" color="warning" />
+                      <Typography variant="subtitle2" color="warning.main">Warnings ({importResult.errors.length})</Typography>
+                    </Stack>
+                    <Paper variant="outlined" sx={{ p: 1.5, maxHeight: 160, overflowY: 'auto' }}>
+                      {importResult.errors.map((e, i) => (
+                        <Typography key={i} variant="caption" display="block" color="text.secondary">{e}</Typography>
+                      ))}
+                    </Paper>
+                  </Box>
+                )}
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setImportStep('upload');
+                    setImportFile(null);
+                    setImportHeaders([]);
+                    setImportPreview([]);
+                    setImportMapping({});
+                    setImportSprintId('');
+                    setImportResult(null);
+                  }}
+                >
+                  Import Another File
+                </Button>
+              </Stack>
             )}
           </Box>
         </TabPanel>

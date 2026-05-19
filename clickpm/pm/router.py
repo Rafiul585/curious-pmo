@@ -8,6 +8,7 @@ from pm.views.goal_views import GoalViewSet, GoalTargetViewSet
 from pm.views.template_views import TaskTemplateViewSet
 from pm.views.git_views import GitIntegrationViewSet, TaskGitLinkViewSet
 from pm.views.doc_views import DocViewSet
+from pm.views.import_views import ImportViewSet
 from pm.views.task_views import TaskViewSet, TaskDependencyViewSet, TimeLogViewSet
 from pm.views.checklist_views import ChecklistViewSet, ChecklistItemViewSet
 from pm.views.tag_views import TagViewSet
@@ -75,6 +76,9 @@ router.register(r'task-git-links', TaskGitLinkViewSet, basename='task-git-link')
 
 # Docs / Wiki
 router.register(r'docs', DocViewSet, basename='doc')
+
+# CSV Import
+router.register(r'import', ImportViewSet, basename='import')
 
 
 urlpatterns = router.urls
