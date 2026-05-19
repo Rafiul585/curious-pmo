@@ -35,6 +35,7 @@ import {
   CalendarMonth,
   FilterList,
   FileDownload,
+  ContentCopy,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useCreateTaskMutation, useListTasksQuery, useGetMyTasksQuery, Task } from '../api/taskApi';
@@ -47,6 +48,8 @@ import { useListTagsQuery } from '../api/tagApi';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
 import { downloadExport } from '../utils/exportDownload';
+import { useListTemplatesQuery, useCreateTaskFromTemplateMutation } from '../api/templateApi';
+import { useListWorkspacesQuery } from '../api/workspaceApi';
 
 const priorityColors: Record<string, 'default' | 'info' | 'warning' | 'error'> = {
   'Low': 'default',
@@ -104,6 +107,12 @@ export const TasksPage = () => {
   const { data: allTasks, isLoading: loadingAll } = useListTasksQuery();
   const { data: myTasks, isLoading: loadingMy } = useGetMyTasksQuery();
   const { data: projects } = useListProjectsQuery();
+  const { data: workspaces } = useListWorkspacesQuery();
+  const firstWorkspaceId = workspaces?.[0]?.id;
+  const { data: templates } = useListTemplatesQuery(firstWorkspaceId!, { skip: !firstWorkspaceId });
+  const [createFromTemplate] = useCreateTaskFromTemplateMutation();
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | ''>('');
   const { data: currentUser } = useGetCurrentUserQuery();
   const { data: allTags } = useListTagsQuery();
   const [createTask, { isLoading: creating }] = useCreateTaskMutation();
@@ -158,18 +167,27 @@ export const TasksPage = () => {
       return;
     }
     try {
-      await createTask({
-        title: form.title,
-        description: form.description,
-        status: form.status,
-        priority: form.priority,
-        sprint: Number(form.sprint),
-        due_date: form.due_date || undefined,
-        assignee: form.assignee ? Number(form.assignee) : undefined,
-        reporter: form.reporter ? Number(form.reporter) : (currentUser?.id || undefined),
-      }).unwrap();
+      if (selectedTemplateId) {
+        await createFromTemplate({
+          template_id: selectedTemplateId,
+          title: form.title,
+          sprint: Number(form.sprint),
+        }).unwrap();
+      } else {
+        await createTask({
+          title: form.title,
+          description: form.description,
+          status: form.status,
+          priority: form.priority,
+          sprint: Number(form.sprint),
+          due_date: form.due_date || undefined,
+          assignee: form.assignee ? Number(form.assignee) : undefined,
+          reporter: form.reporter ? Number(form.reporter) : (currentUser?.id || undefined),
+        }).unwrap();
+      }
       enqueueSnackbar('Task created successfully', { variant: 'success' });
       setCreateDialogOpen(false);
+      setSelectedTemplateId('');
       setForm({ title: '', description: '', status: 'To-do', priority: 'Medium', project: '', milestone: '', sprint: '', due_date: '', assignee: '', reporter: '' });
     } catch {
       enqueueSnackbar('Failed to create task', { variant: 'error' });
@@ -403,6 +421,65 @@ export const TasksPage = () => {
         <DialogTitle>Create New Task</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            {/* Template picker */}
+            {templates && templates.length > 0 && (
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<ContentCopy fontSize="small" />}
+                  onClick={() => setTemplatePickerOpen((v) => !v)}
+                  color={selectedTemplateId ? 'primary' : 'inherit'}
+                >
+                  {selectedTemplateId
+                    ? `Template: ${templates.find((t) => t.id === selectedTemplateId)?.name}`
+                    : 'Use Template'}
+                </Button>
+                {selectedTemplateId && (
+                  <Button size="small" color="inherit" onClick={() => setSelectedTemplateId('')}>
+                    Clear
+                  </Button>
+                )}
+              </Stack>
+            )}
+            {templatePickerOpen && templates && templates.length > 0 && (
+              <Stack spacing={0.5}>
+                {templates.map((tpl) => (
+                  <Paper
+                    key={tpl.id}
+                    variant="outlined"
+                    sx={{
+                      px: 1.5, py: 1, cursor: 'pointer',
+                      bgcolor: selectedTemplateId === tpl.id ? 'action.selected' : undefined,
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}
+                    onClick={() => {
+                      setSelectedTemplateId(tpl.id);
+                      setForm((f) => ({
+                        ...f,
+                        description: tpl.description || f.description,
+                        priority: tpl.default_priority,
+                      }));
+                      setTemplatePickerOpen(false);
+                    }}
+                  >
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <ContentCopy fontSize="small" color="action" />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" fontWeight={600}>{tpl.name}</Typography>
+                        {tpl.description && (
+                          <Typography variant="caption" color="text.secondary" noWrap>{tpl.description}</Typography>
+                        )}
+                      </Box>
+                      <Chip label={tpl.default_priority} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 18 }} />
+                      {tpl.checklist_items.length > 0 && (
+                        <Chip label={`${tpl.checklist_items.length} items`} size="small" sx={{ fontSize: '0.65rem', height: 18 }} />
+                      )}
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
             <TextField
               label="Task Title"
               value={form.title}

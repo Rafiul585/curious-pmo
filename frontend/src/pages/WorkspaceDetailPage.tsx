@@ -46,7 +46,9 @@ import {
   AdminPanelSettings,
   Search,
   CheckCircle,
+  ContentCopy,
 } from '@mui/icons-material';
+import { Checkbox, FormControlLabel } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import {
   useGetWorkspaceQuery,
@@ -60,6 +62,12 @@ import {
 import { useListUsersQuery } from '../api/userApi';
 import { useCreateProjectMutation } from '../api/projectApi';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
+import {
+  useListTemplatesQuery,
+  useCreateTemplateMutation,
+  useDeleteTemplateMutation,
+} from '../api/templateApi';
+import type { TaskTemplate } from '../api/templateApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -103,6 +111,18 @@ export const WorkspaceDetailPage = () => {
   const [addMember] = useAddWorkspaceMemberMutation();
   const [removeMember] = useRemoveWorkspaceMemberMutation();
   const [createProject, { isLoading: creatingProject }] = useCreateProjectMutation();
+
+  const { data: templates } = useListTemplatesQuery(workspaceId);
+  const [createTemplate] = useCreateTemplateMutation();
+  const [deleteTemplate] = useDeleteTemplateMutation();
+  const [showAddTemplate, setShowAddTemplate] = useState(false);
+  const blankTemplateForm = () => ({
+    name: '',
+    description: '',
+    default_priority: 'Medium' as TaskTemplate['default_priority'],
+    checklist_items_text: '',
+  });
+  const [templateForm, setTemplateForm] = useState(blankTemplateForm);
 
   // Initialize settings form when workspace loads
   useEffect(() => {
@@ -297,6 +317,7 @@ export const WorkspaceDetailPage = () => {
           <Tab icon={<People />} iconPosition="start" label={`Members (${members?.length || 0})`} />
           <Tab icon={<History />} iconPosition="start" label="Activity" />
           <Tab icon={<Settings />} iconPosition="start" label="Settings" />
+          <Tab icon={<ContentCopy />} iconPosition="start" label={`Templates (${templates?.length || 0})`} />
         </Tabs>
 
         {/* Projects Tab */}
@@ -536,6 +557,169 @@ export const WorkspaceDetailPage = () => {
                 </Paper>
               </Grid>
             </Grid>
+          </Box>
+        </TabPanel>
+
+        {/* ── Templates Tab ── */}
+        <TabPanel value={tabValue} index={4}>
+          <Box sx={{ px: 3 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="h6" fontWeight={600}>Task Templates</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Reusable task blueprints with pre-filled checklists, priority, and description.
+                </Typography>
+              </Box>
+              <Button startIcon={<Add />} variant="contained" onClick={() => setShowAddTemplate(true)}>
+                New Template
+              </Button>
+            </Stack>
+
+            {templates && templates.length > 0 ? (
+              <Stack spacing={1.5} sx={{ mb: 3 }}>
+                {templates.map((tpl) => (
+                  <Paper key={tpl.id} variant="outlined" sx={{ px: 2, py: 1.5 }}>
+                    <Stack direction="row" alignItems="flex-start" spacing={2}>
+                      <ContentCopy color="action" sx={{ mt: 0.5 }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                          <Typography variant="subtitle2" fontWeight={600}>{tpl.name}</Typography>
+                          <Chip label={tpl.default_priority} size="small" variant="outlined"
+                            color={tpl.default_priority === 'Critical' ? 'error' : tpl.default_priority === 'High' ? 'warning' : tpl.default_priority === 'Low' ? 'default' : 'info'}
+                          />
+                          {tpl.checklist_items.length > 0 && (
+                            <Chip label={`${tpl.checklist_items.length} checklist items`} size="small" variant="outlined" />
+                          )}
+                        </Stack>
+                        {tpl.description && (
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{tpl.description}</Typography>
+                        )}
+                        {tpl.checklist_items.length > 0 && (
+                          <Stack spacing={0.25} sx={{ mt: 0.75 }}>
+                            {tpl.checklist_items.slice(0, 3).map((item, i) => (
+                              <Stack key={i} direction="row" alignItems="center" spacing={0.5}>
+                                <CheckCircle sx={{ fontSize: 12, color: 'text.disabled' }} />
+                                <Typography variant="caption" color="text.secondary">{item.text}</Typography>
+                              </Stack>
+                            ))}
+                            {tpl.checklist_items.length > 3 && (
+                              <Typography variant="caption" color="text.disabled">
+                                +{tpl.checklist_items.length - 3} more…
+                              </Typography>
+                            )}
+                          </Stack>
+                        )}
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={async () => {
+                          try {
+                            await deleteTemplate({ id: tpl.id, workspaceId }).unwrap();
+                            enqueueSnackbar('Template deleted', { variant: 'success' });
+                          } catch {
+                            enqueueSnackbar('Failed to delete template', { variant: 'error' });
+                          }
+                        }}
+                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : !showAddTemplate ? (
+              <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', mb: 3 }}>
+                <ContentCopy sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+                <Typography variant="body2" color="text.secondary">
+                  No templates yet. Create one to speed up task creation.
+                </Typography>
+              </Paper>
+            ) : null}
+
+            {showAddTemplate && (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>New Template</Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Template name"
+                    size="small"
+                    fullWidth
+                    value={templateForm.name}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+                    autoFocus
+                  />
+                  <TextField
+                    label="Description (optional)"
+                    size="small"
+                    fullWidth
+                    multiline
+                    rows={2}
+                    value={templateForm.description}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))}
+                  />
+                  <TextField
+                    label="Default priority"
+                    select
+                    size="small"
+                    fullWidth
+                    value={templateForm.default_priority}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, default_priority: e.target.value as TaskTemplate['default_priority'] }))}
+                  >
+                    <MenuItem value="Low">Low</MenuItem>
+                    <MenuItem value="Medium">Medium</MenuItem>
+                    <MenuItem value="High">High</MenuItem>
+                    <MenuItem value="Critical">Critical</MenuItem>
+                  </TextField>
+                  <TextField
+                    label="Checklist items (one per line)"
+                    size="small"
+                    fullWidth
+                    multiline
+                    rows={4}
+                    value={templateForm.checklist_items_text}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, checklist_items_text: e.target.value }))}
+                    placeholder="Write unit tests&#10;Update documentation&#10;Request review"
+                    helperText="Each line becomes a checklist item"
+                  />
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button size="small" onClick={() => { setShowAddTemplate(false); setTemplateForm(blankTemplateForm()); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!templateForm.name.trim()}
+                      onClick={async () => {
+                        const items = templateForm.checklist_items_text
+                          .split('\n')
+                          .map((l) => l.trim())
+                          .filter(Boolean)
+                          .map((text) => ({ text, is_checked: false }));
+                        try {
+                          await createTemplate({
+                            workspace: workspaceId,
+                            name: templateForm.name.trim(),
+                            description: templateForm.description,
+                            default_priority: templateForm.default_priority,
+                            default_tags: [],
+                            checklist_items: items,
+                            custom_field_defaults: {},
+                          }).unwrap();
+                          enqueueSnackbar('Template created', { variant: 'success' });
+                          setShowAddTemplate(false);
+                          setTemplateForm(blankTemplateForm());
+                        } catch {
+                          enqueueSnackbar('Failed to create template', { variant: 'error' });
+                        }
+                      }}
+                    >
+                      Create Template
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            )}
           </Box>
         </TabPanel>
       </Paper>

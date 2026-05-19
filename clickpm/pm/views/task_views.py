@@ -472,6 +472,61 @@ class TaskViewSet(viewsets.ModelViewSet):
         serializer = TimeLogSerializer(logs, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['POST'])
+    def from_template(self, request):
+        """
+        POST /api/tasks/from_template/
+        Body: { "template_id": <id>, "title": "...", "sprint": <id> }
+        Creates a task (and checklist items) from a TaskTemplate.
+        """
+        from pm.models.template_models import TaskTemplate
+        from pm.models.task_models import Checklist, ChecklistItem
+        from pm.serializers.task_serializers import TaskSerializer
+
+        template_id = request.data.get('template_id')
+        title       = request.data.get('title', '').strip()
+        sprint_id   = request.data.get('sprint')
+
+        if not template_id or not sprint_id:
+            return Response({'error': 'template_id and sprint are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            template = TaskTemplate.objects.get(id=template_id)
+        except TaskTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        task = Task.objects.create(
+            title=title or template.name,
+            description=template.description,
+            status='To-do',
+            priority=template.default_priority,
+            sprint_id=sprint_id,
+            reporter=request.user,
+        )
+
+        # Apply default tags
+        for tag in template.default_tags.all():
+            task.tags.add(tag)
+
+        # Create checklist if items exist
+        if template.checklist_items:
+            checklist = Checklist.objects.create(task=task, title='Checklist')
+            for item in template.checklist_items:
+                ChecklistItem.objects.create(
+                    checklist=checklist,
+                    text=item.get('text', ''),
+                    is_checked=item.get('is_checked', False),
+                )
+
+        AuditService.log_create(
+            user=request.user,
+            instance=task,
+            reason=f'Task created from template "{template.name}"',
+        )
+
+        serializer = TaskSerializer(task, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 class TimeLogViewSet(viewsets.ModelViewSet):
     """
