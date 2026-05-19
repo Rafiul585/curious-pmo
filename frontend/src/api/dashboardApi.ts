@@ -75,6 +75,27 @@ export interface TeamWorkload {
   total_unassigned_tasks: number;
 }
 
+export interface DayLoad {
+  date: string;
+  task_count: number;
+  estimated_hours: number;
+}
+
+export interface UserDayLoad {
+  user_id: number;
+  username: string;
+  days: DayLoad[];
+}
+
+export interface WorkloadCalendar extends TeamWorkload {
+  per_day: UserDayLoad[];
+  date_range: {
+    start: string;
+    end: string;
+    days: string[];
+  };
+}
+
 export interface ProjectProgress {
   id: number;
   name: string;
@@ -282,6 +303,8 @@ export interface WorkspaceOverview {
     status: string;
     tasks_count: number;
     completed_tasks: number;
+    start_date?: string;
+    end_date?: string;
   }[];
 }
 
@@ -385,6 +408,15 @@ export const dashboardApi = api.injectEndpoints({
       providesTags: ['Dashboard', 'Task'],
     }),
 
+    // Workload calendar (per-day breakdown for dedicated page)
+    getWorkloadCalendar: build.query<WorkloadCalendar, { start: string; end: string }>({
+      query: ({ start, end }) => ({
+        url: '/dashboard/team_workload/',
+        params: { start, end },
+      }),
+      providesTags: ['Dashboard', 'Task'],
+    }),
+
     // Projects progress
     getProjectsProgress: build.query<ProjectsProgress, void>({
       query: () => ({ url: '/dashboard/projects_progress/' }),
@@ -474,4 +506,5 @@ export const {
   useGetMilestoneProgressQuery,
   useGetFilterOptionsQuery,
   useGetFilteredOverviewQuery,
+  useGetWorkloadCalendarQuery,
 } = dashboardApi;

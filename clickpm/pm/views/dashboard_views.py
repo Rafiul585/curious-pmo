@@ -225,29 +225,49 @@ class DashboardViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['GET'])
     def team_workload(self, request):
         """
-        Get task distribution by team member.
-        Returns workload statistics for each assignee.
+        GET /api/dashboard/team_workload/
+        GET /api/dashboard/team_workload/?start=2025-05-01&end=2025-05-31
+
+        Without date params: returns aggregated per-member stats (legacy).
+        With start+end: also returns per_day breakdown suitable for capacity view.
         """
         user = request.user
         today = date.today()
 
+        # Parse optional date range
+        start_str = request.query_params.get('start')
+        end_str = request.query_params.get('end')
+
+        try:
+            range_start = date.fromisoformat(start_str) if start_str else None
+            range_end = date.fromisoformat(end_str) if end_str else None
+        except ValueError:
+            return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
+
         # Get accessible projects for the user
         accessible_projects = get_accessible_projects(user)
 
-        # Get all tasks in accessible projects
+        # Base queryset — tasks inside the date range when provided
         all_tasks = Task.objects.filter(
             sprint__milestone__project__in=accessible_projects
         )
+        if range_start and range_end:
+            ranged_tasks = all_tasks.filter(
+                due_date__gte=range_start,
+                due_date__lte=range_end,
+            )
+        else:
+            ranged_tasks = all_tasks
 
-        # Get workload by assignee
-        workload_data = all_tasks.exclude(assignee__isnull=True).values(
+        # Aggregate per-member totals
+        workload_data = ranged_tasks.exclude(assignee__isnull=True).values(
             'assignee__id', 'assignee__username', 'assignee__email'
         ).annotate(
             total_tasks=Count('id'),
             completed_tasks=Count('id', filter=Q(status='Done')),
             in_progress_tasks=Count('id', filter=Q(status='In Progress')),
             todo_tasks=Count('id', filter=Q(status='To-do')),
-            overdue_tasks=Count('id', filter=Q(due_date__lt=today) & ~Q(status='Done'))
+            overdue_tasks=Count('id', filter=Q(due_date__lt=today) & ~Q(status='Done')),
         ).order_by('-total_tasks')
 
         team_members = []
@@ -255,7 +275,6 @@ class DashboardViewSet(viewsets.ViewSet):
             total = member['total_tasks']
             completed = member['completed_tasks']
             completion_rate = round((completed / total * 100) if total > 0 else 0, 1)
-
             username = member['assignee__username']
             initials = ''.join([n[0].upper() for n in username.split()[:2]]) if username else '?'
 
@@ -272,16 +291,81 @@ class DashboardViewSet(viewsets.ViewSet):
                 'completion_rate': completion_rate,
             })
 
-        # Summary stats
         total_assigned = sum(m['total_tasks'] for m in team_members)
         total_unassigned = all_tasks.filter(assignee__isnull=True).count()
 
-        return Response({
+        response_data = {
             'team_members': team_members,
             'total_members': len(team_members),
             'total_assigned_tasks': total_assigned,
             'total_unassigned_tasks': total_unassigned,
-        })
+        }
+
+        # Per-day breakdown when date range is provided
+        if range_start and range_end:
+            # Build {user_id: {date_str: {task_count, estimated_hours}}}
+            daily_raw = (
+                ranged_tasks
+                .exclude(assignee__isnull=True)
+                .exclude(due_date__isnull=True)
+                .values('assignee__id', 'assignee__username', 'due_date')
+                .annotate(
+                    task_count=Count('id'),
+                    estimated_hours=Sum('estimated_hours'),
+                )
+            )
+
+            # Collect unique users in the range
+            users_in_range = {}
+            for row in daily_raw:
+                uid = row['assignee__id']
+                if uid not in users_in_range:
+                    users_in_range[uid] = row['assignee__username']
+
+            # Build per_day structure: list of {user_id, username, days: [{date, task_count, estimated_hours}]}
+            per_day: dict = {}
+            for row in daily_raw:
+                uid = row['assignee__id']
+                if uid not in per_day:
+                    per_day[uid] = {
+                        'user_id': uid,
+                        'username': row['assignee__username'],
+                        'days': {},
+                    }
+                d = row['due_date'].isoformat()
+                per_day[uid]['days'][d] = {
+                    'date': d,
+                    'task_count': row['task_count'],
+                    'estimated_hours': float(row['estimated_hours'] or 0),
+                }
+
+            # Enumerate all days in range so missing days are zero-filled
+            days_list = []
+            cursor = range_start
+            while cursor <= range_end:
+                days_list.append(cursor.isoformat())
+                cursor += timedelta(days=1)
+
+            per_day_list = []
+            for uid, data in per_day.items():
+                filled = []
+                for d in days_list:
+                    entry = data['days'].get(d, {'date': d, 'task_count': 0, 'estimated_hours': 0.0})
+                    filled.append(entry)
+                per_day_list.append({
+                    'user_id': uid,
+                    'username': data['username'],
+                    'days': filled,
+                })
+
+            response_data['per_day'] = per_day_list
+            response_data['date_range'] = {
+                'start': range_start.isoformat(),
+                'end': range_end.isoformat(),
+                'days': days_list,
+            }
+
+        return Response(response_data)
 
     # ---------------------------------------------------------
     #  PROJECTS PROGRESS (User-level)

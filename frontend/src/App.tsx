@@ -9,6 +9,7 @@ import { TasksPage } from './pages/TasksPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { GanttPage } from './pages/GanttPage';
 import { KanbanPage } from './pages/KanbanPage';
+import { WorkloadPage } from './pages/WorkloadPage';
 import { SearchPage } from './pages/SearchPage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
 import { WorkspaceDetailPage } from './pages/WorkspaceDetailPage';
@@ -53,6 +54,7 @@ const App = () => (
       {/* Views */}
       <Route path="/gantt" element={<GanttPage />} />
       <Route path="/kanban" element={<KanbanPage />} />
+      <Route path="/workload" element={<WorkloadPage />} />
 
       {/* Search */}
       <Route path="/search" element={<SearchPage />} />

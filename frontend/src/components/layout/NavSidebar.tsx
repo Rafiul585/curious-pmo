@@ -24,6 +24,7 @@ import {
   Person as PersonIcon,
   ExpandLess,
   ExpandMore,
+  People as PeopleIcon,
 } from '@mui/icons-material';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
@@ -55,6 +56,7 @@ const navItems: NavItemOrDivider[] = [
   { divider: true, label: 'VIEWS' },
   { label: 'Gantt Chart', to: '/gantt', icon: <BarChartIcon /> },
   { label: 'Kanban Board', to: '/kanban', icon: <ViewKanbanIcon /> },
+  { label: 'Workload', to: '/workload', icon: <PeopleIcon /> },
   { divider: true, label: 'TOOLS' },
   { label: 'Search', to: '/search', icon: <SearchIcon /> },
   { divider: true },
