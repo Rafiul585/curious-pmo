@@ -397,6 +397,60 @@ class TaskViewSet(viewsets.ModelViewSet):
         task.watchers.remove(request.user)
         return Response({'status': 'unwatched', 'watcher_count': task.watchers.count()})
 
+    @action(detail=True, methods=['GET', 'POST'])
+    def custom_field_values(self, request, pk=None):
+        """
+        GET  /api/tasks/{id}/custom_field_values/ — list all custom field values for this task
+        POST /api/tasks/{id}/custom_field_values/ — set a value: {field: <id>, value: <any>}
+             (creates or updates the value for that field)
+        """
+        from pm.models.project_models import TaskCustomFieldValue, CustomFieldDefinition
+        from pm.serializers.custom_field_serializers import TaskCustomFieldValueSerializer
+
+        task = self.get_object()
+
+        if request.method == 'GET':
+            # Return values merged with field definitions so the frontend knows about empty fields too
+            project = task.sprint.milestone.project if task.sprint and task.sprint.milestone else None
+            if not project:
+                return Response([])
+
+            field_defs = CustomFieldDefinition.objects.filter(project=project).order_by('order', 'id')
+            existing = {v.field_id: v for v in task.custom_field_values.select_related('field').all()}
+
+            result = []
+            for field in field_defs:
+                val_obj = existing.get(field.id)
+                result.append({
+                    'id': val_obj.id if val_obj else None,
+                    'task': task.id,
+                    'field': field.id,
+                    'field_name': field.name,
+                    'field_type': field.field_type,
+                    'field_options': field.options,
+                    'required': field.required,
+                    'value': val_obj.value if val_obj else None,
+                })
+            return Response(result)
+
+        # POST — upsert a single field value
+        field_id = request.data.get('field')
+        value = request.data.get('value')
+        if not field_id:
+            return Response({'error': 'field is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            field = CustomFieldDefinition.objects.get(id=field_id)
+        except CustomFieldDefinition.DoesNotExist:
+            return Response({'error': 'Field not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        obj, _ = TaskCustomFieldValue.objects.update_or_create(
+            task=task, field=field,
+            defaults={'value': value},
+        )
+        serializer = TaskCustomFieldValueSerializer(obj)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['GET'])
     def time_logs(self, request, pk=None):
         """GET /api/tasks/{id}/time_logs/ — list all time logs for this task."""

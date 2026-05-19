@@ -63,6 +63,44 @@ class ProjectStatus(models.Model):
         return f"{self.project.name} — {self.name}"
 
 
+# ─── Custom Fields ────────────────────────────────────────────────────────────
+
+class CustomFieldDefinition(models.Model):
+    FIELD_TYPES = [
+        ('text',     'Text'),
+        ('number',   'Number'),
+        ('date',     'Date'),
+        ('dropdown', 'Dropdown'),
+        ('checkbox', 'Checkbox'),
+        ('url',      'URL'),
+    ]
+    project    = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='custom_fields')
+    name       = models.CharField(max_length=100)
+    field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
+    options    = models.JSONField(default=list, blank=True)
+    required   = models.BooleanField(default=False)
+    order      = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        unique_together = ('project', 'name')
+
+    def __str__(self):
+        return f"{self.project.name} / {self.name} ({self.field_type})"
+
+
+class TaskCustomFieldValue(models.Model):
+    task  = models.ForeignKey('pm.Task', on_delete=models.CASCADE, related_name='custom_field_values')
+    field = models.ForeignKey(CustomFieldDefinition, on_delete=models.CASCADE, related_name='values')
+    value = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('task', 'field')
+
+    def __str__(self):
+        return f"Task {self.task_id} / {self.field.name} = {self.value}"
+
+
 # Project membership
 class ProjectMember(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

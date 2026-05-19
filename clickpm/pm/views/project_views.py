@@ -6,7 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
 
-from pm.models.project_models import Project, ProjectMember, Milestone, Sprint, ProjectStatus
+from pm.models.project_models import Project, ProjectMember, Milestone, Sprint, ProjectStatus, CustomFieldDefinition
 from pm.models.workspace_models import WorkspaceMember
 from pm.serializers.project_serializers import (
     ProjectSerializer, ProjectDetailSerializer, ProjectCreateUpdateSerializer,
@@ -14,6 +14,7 @@ from pm.serializers.project_serializers import (
     SprintSerializer, SprintCreateUpdateSerializer,
     ProjectStatusSerializer,
 )
+from pm.serializers.custom_field_serializers import CustomFieldDefinitionSerializer
 from pm.permissions import IsProjectMember, CanViewProject
 from pm.utils.permission_helpers import get_accessible_projects
 from pm.services.audit_service import AuditService, EventType
@@ -622,3 +623,20 @@ class ProjectStatusViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         accessible_projects = get_accessible_projects(self.request.user)
         return ProjectStatus.objects.filter(project__in=accessible_projects)
+
+
+class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for CustomFieldDefinition.
+    GET  /api/custom-fields/?project=<id>  — list fields for a project
+    POST /api/custom-fields/               — create a field
+    PATCH/DELETE /api/custom-fields/<id>/  — update/delete a field
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = CustomFieldDefinitionSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['project']
+
+    def get_queryset(self):
+        accessible_projects = get_accessible_projects(self.request.user)
+        return CustomFieldDefinition.objects.filter(project__in=accessible_projects).order_by('order', 'id')

@@ -79,6 +79,13 @@ import { MilestoneManager } from '../components/projects/MilestoneManager';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
 import { HealthBadge } from '../components/feedback/HealthBadge';
 import { TaskDetailModal } from '../components/tasks/TaskDetailModal';
+import {
+  useListCustomFieldsQuery,
+  useCreateCustomFieldMutation,
+  useUpdateCustomFieldMutation,
+  useDeleteCustomFieldMutation,
+} from '../api/customFieldApi';
+import type { CustomFieldDefinition } from '../api/customFieldApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -173,6 +180,18 @@ export const ProjectDetailPage = () => {
   const [deleteStatus] = useDeleteProjectStatusMutation();
   const [newStatusForm, setNewStatusForm] = useState({ name: '', color: '#6B7280', is_done_state: false });
   const [showAddStatus, setShowAddStatus] = useState(false);
+  const { data: customFields } = useListCustomFieldsQuery(projectId);
+  const [createCustomField] = useCreateCustomFieldMutation();
+  const [updateCustomField] = useUpdateCustomFieldMutation();
+  const [deleteCustomField] = useDeleteCustomFieldMutation();
+  const [showAddField, setShowAddField] = useState(false);
+  const [newFieldForm, setNewFieldForm] = useState<{ name: string; field_type: CustomFieldDefinition['field_type']; options: string; required: boolean }>({
+    name: '', field_type: 'text', options: '', required: false,
+  });
+  const [editFieldId, setEditFieldId] = useState<number | null>(null);
+  const [editFieldForm, setEditFieldForm] = useState<{ name: string; options: string; required: boolean }>({
+    name: '', options: '', required: false,
+  });
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [exportAnchor, setExportAnchor] = useState<null | HTMLElement>(null);
 
@@ -1007,6 +1026,176 @@ export const ProjectDetailPage = () => {
             ) : (
               <Button startIcon={<Add />} variant="outlined" onClick={() => setShowAddStatus(true)}>
                 Add Status
+              </Button>
+            )}
+
+            <Divider sx={{ my: 4 }} />
+
+            {/* ── Custom Fields ── */}
+            <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>Custom Fields</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Define extra metadata fields for tasks in this project (text, number, date, dropdown, checkbox, URL).
+            </Typography>
+
+            {customFields && customFields.length > 0 ? (
+              <Stack spacing={1} sx={{ mb: 3 }}>
+                {customFields.map((f) => (
+                  <Paper key={f.id} variant="outlined" sx={{ px: 2, py: 1.5 }}>
+                    {editFieldId === f.id ? (
+                      <Stack spacing={1.5}>
+                        <TextField
+                          label="Name"
+                          size="small"
+                          value={editFieldForm.name}
+                          onChange={(e) => setEditFieldForm((x) => ({ ...x, name: e.target.value }))}
+                        />
+                        {(f.field_type === 'dropdown') && (
+                          <TextField
+                            label="Options (comma-separated)"
+                            size="small"
+                            value={editFieldForm.options}
+                            onChange={(e) => setEditFieldForm((x) => ({ ...x, options: e.target.value }))}
+                            helperText="e.g. Option A, Option B, Option C"
+                          />
+                        )}
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Checkbox size="small" checked={editFieldForm.required} onChange={(e) => setEditFieldForm((x) => ({ ...x, required: e.target.checked }))} />
+                          <Typography variant="body2">Required</Typography>
+                        </Stack>
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Button size="small" onClick={() => setEditFieldId(null)}>Cancel</Button>
+                          <Button size="small" variant="contained" onClick={async () => {
+                            try {
+                              await updateCustomField({
+                                id: f.id,
+                                data: {
+                                  name: editFieldForm.name.trim() || f.name,
+                                  options: f.field_type === 'dropdown'
+                                    ? editFieldForm.options.split(',').map((s) => s.trim()).filter(Boolean)
+                                    : [],
+                                  required: editFieldForm.required,
+                                },
+                              }).unwrap();
+                              setEditFieldId(null);
+                              enqueueSnackbar('Field updated', { variant: 'success' });
+                            } catch {
+                              enqueueSnackbar('Failed to update field', { variant: 'error' });
+                            }
+                          }}>Save</Button>
+                        </Stack>
+                      </Stack>
+                    ) : (
+                      <Stack direction="row" alignItems="center" spacing={2}>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="body2" fontWeight={500}>{f.name}</Typography>
+                          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+                            <Chip label={f.field_type} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 18 }} />
+                            {f.required && <Chip label="required" size="small" color="warning" variant="outlined" sx={{ fontSize: '0.65rem', height: 18 }} />}
+                            {f.field_type === 'dropdown' && f.options.length > 0 && (
+                              <Typography variant="caption" color="text.secondary">{f.options.join(', ')}</Typography>
+                            )}
+                          </Stack>
+                        </Box>
+                        <IconButton size="small" onClick={() => {
+                          setEditFieldId(f.id);
+                          setEditFieldForm({ name: f.name, options: f.options.join(', '), required: f.required });
+                        }}>
+                          <Edit fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" color="error" onClick={async () => {
+                          try {
+                            await deleteCustomField({ id: f.id, projectId }).unwrap();
+                            enqueueSnackbar('Field deleted', { variant: 'success' });
+                          } catch {
+                            enqueueSnackbar('Failed to delete field', { variant: 'error' });
+                          }
+                        }}>
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    )}
+                  </Paper>
+                ))}
+              </Stack>
+            ) : (
+              <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: 'action.hover' }}>
+                <Typography variant="body2" color="text.secondary">No custom fields defined yet.</Typography>
+              </Paper>
+            )}
+
+            {showAddField ? (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>New Custom Field</Typography>
+                <Stack spacing={2}>
+                  <Stack direction="row" spacing={2}>
+                    <TextField
+                      label="Field name"
+                      size="small"
+                      value={newFieldForm.name}
+                      onChange={(e) => setNewFieldForm((x) => ({ ...x, name: e.target.value }))}
+                      sx={{ flex: 1 }}
+                    />
+                    <TextField
+                      label="Type"
+                      select
+                      size="small"
+                      value={newFieldForm.field_type}
+                      onChange={(e) => setNewFieldForm((x) => ({ ...x, field_type: e.target.value as CustomFieldDefinition['field_type'] }))}
+                      sx={{ minWidth: 140 }}
+                    >
+                      {(['text', 'number', 'date', 'dropdown', 'checkbox', 'url'] as const).map((t) => (
+                        <MenuItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Stack>
+                  {newFieldForm.field_type === 'dropdown' && (
+                    <TextField
+                      label="Options (comma-separated)"
+                      size="small"
+                      value={newFieldForm.options}
+                      onChange={(e) => setNewFieldForm((x) => ({ ...x, options: e.target.value }))}
+                      helperText="e.g. Option A, Option B, Option C"
+                    />
+                  )}
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <Checkbox size="small" checked={newFieldForm.required} onChange={(e) => setNewFieldForm((x) => ({ ...x, required: e.target.checked }))} />
+                    <Typography variant="body2">Required</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button size="small" onClick={() => { setShowAddField(false); setNewFieldForm({ name: '', field_type: 'text', options: '', required: false }); }}>Cancel</Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!newFieldForm.name.trim()}
+                      onClick={async () => {
+                        if (!newFieldForm.name.trim()) return;
+                        try {
+                          await createCustomField({
+                            project: projectId,
+                            name: newFieldForm.name.trim(),
+                            field_type: newFieldForm.field_type,
+                            options: newFieldForm.field_type === 'dropdown'
+                              ? newFieldForm.options.split(',').map((s) => s.trim()).filter(Boolean)
+                              : [],
+                            required: newFieldForm.required,
+                            order: customFields?.length ?? 0,
+                          }).unwrap();
+                          enqueueSnackbar('Custom field created', { variant: 'success' });
+                          setNewFieldForm({ name: '', field_type: 'text', options: '', required: false });
+                          setShowAddField(false);
+                        } catch {
+                          enqueueSnackbar('Failed to create field', { variant: 'error' });
+                        }
+                      }}
+                    >
+                      Create
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            ) : (
+              <Button startIcon={<Add />} variant="outlined" onClick={() => setShowAddField(true)}>
+                Add Custom Field
               </Button>
             )}
           </Box>

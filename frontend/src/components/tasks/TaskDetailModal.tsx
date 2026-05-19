@@ -35,6 +35,7 @@ import {
   Tooltip,
   Typography,
   alpha,
+  Checkbox,
 } from '@mui/material';
 import {
   Close,
@@ -90,6 +91,8 @@ import {
 import { useGetProjectQuery } from '../../api/projectApi';
 import { useListTagsQuery, useAddTagToTaskMutation, useRemoveTagFromTaskMutation, useCreateTagMutation } from '../../api/tagApi';
 import { useGetTaskAttachmentsQuery, useUploadAttachmentMutation, useDeleteAttachmentMutation } from '../../api/attachmentApi';
+import { useGetTaskCustomFieldValuesQuery, useSetCustomFieldValueMutation } from '../../api/customFieldApi';
+import type { CustomFieldValue } from '../../api/customFieldApi';
 
 interface TaskDetailModalProps {
   taskId: number | null;
@@ -196,6 +199,28 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const [tagMenuAnchor, setTagMenuAnchor] = useState<null | HTMLElement>(null);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#6B7280');
+
+  const { data: customFieldValues } = useGetTaskCustomFieldValuesQuery(taskId!, { skip: !taskId });
+  const [setCustomFieldValue] = useSetCustomFieldValueMutation();
+  const [cfDrafts, setCfDrafts] = useState<Record<number, unknown>>({});
+
+  const handleCfChange = (fieldId: number, value: unknown) => {
+    setCfDrafts((d) => ({ ...d, [fieldId]: value }));
+  };
+
+  const handleCfSave = async (fieldId: number, value: unknown) => {
+    if (!taskId) return;
+    try {
+      await setCustomFieldValue({ taskId, field: fieldId, value }).unwrap();
+    } catch {
+      enqueueSnackbar('Failed to save custom field', { variant: 'error' });
+    }
+  };
+
+  const getCfValue = (fv: CustomFieldValue) => {
+    if (fv.field in cfDrafts) return cfDrafts[fv.field];
+    return fv.value;
+  };
 
   const [logHours, setLogHours] = useState('');
   const [logNote, setLogNote] = useState('');
@@ -1395,6 +1420,73 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                         </Typography>
                       )}
                     </Box>
+
+                    {/* Custom Fields */}
+                    {customFieldValues && customFieldValues.length > 0 && (
+                      <>
+                        <Divider />
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Custom Fields
+                          </Typography>
+                          <Stack spacing={1.5} sx={{ mt: 1 }}>
+                            {customFieldValues.map((fv) => {
+                              const val = getCfValue(fv);
+                              return (
+                                <Box key={fv.field}>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {fv.field_name}{fv.required && ' *'}
+                                  </Typography>
+                                  {fv.field_type === 'checkbox' ? (
+                                    <Box sx={{ mt: 0.25 }}>
+                                      <Checkbox
+                                        size="small"
+                                        checked={Boolean(val)}
+                                        onChange={(e) => {
+                                          handleCfChange(fv.field, e.target.checked);
+                                          handleCfSave(fv.field, e.target.checked);
+                                        }}
+                                        sx={{ p: 0 }}
+                                      />
+                                    </Box>
+                                  ) : fv.field_type === 'dropdown' ? (
+                                    <TextField
+                                      select
+                                      size="small"
+                                      fullWidth
+                                      value={String(val ?? '')}
+                                      onChange={(e) => handleCfChange(fv.field, e.target.value)}
+                                      onBlur={() => handleCfSave(fv.field, val)}
+                                      sx={{ mt: 0.25 }}
+                                    >
+                                      <MenuItem value="">—</MenuItem>
+                                      {fv.field_options.map((opt) => (
+                                        <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                                      ))}
+                                    </TextField>
+                                  ) : (
+                                    <TextField
+                                      size="small"
+                                      fullWidth
+                                      type={
+                                        fv.field_type === 'number' ? 'number' :
+                                        fv.field_type === 'date' ? 'date' :
+                                        fv.field_type === 'url' ? 'url' : 'text'
+                                      }
+                                      value={String(val ?? '')}
+                                      onChange={(e) => handleCfChange(fv.field, e.target.value)}
+                                      onBlur={() => handleCfSave(fv.field, val)}
+                                      InputLabelProps={fv.field_type === 'date' ? { shrink: true } : undefined}
+                                      sx={{ mt: 0.25 }}
+                                    />
+                                  )}
+                                </Box>
+                              );
+                            })}
+                          </Stack>
+                        </Box>
+                      </>
+                    )}
 
                     {/* Sprint */}
                     {task.sprint_details && (

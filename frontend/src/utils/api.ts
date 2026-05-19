@@ -88,6 +88,8 @@ export const api = createApi({
     'Checklist',
     'ProjectStatus',
     'Tag',
+    'CustomField',
+    'CustomFieldValue',
   ],
   endpoints: () => ({}),
 });
