@@ -7,7 +7,8 @@ from datetime import date, timedelta
 
 from pm.models.workspace_models import Workspace, WorkspaceMember
 from pm.models.project_models import Project, Milestone, Sprint
-from pm.models.task_models import Task
+from pm.models.task_models import Task, TimeLog
+from django.db.models import Sum
 from pm.models.activity_models import ActivityLog
 from pm.models.user_models import User
 from pm.utils.permission_helpers import get_accessible_projects
@@ -613,63 +614,72 @@ class DashboardViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['GET'])
     def time_tracking_summary(self, request):
         """
-        Get task productivity summary for the user.
-        Returns task completion stats by project (time tracking placeholder).
+        Get time tracking summary for the user.
+        Returns logged vs. estimated hours broken down by project.
         """
         user = request.user
-        today = date.today()
 
-        # Get accessible projects
         accessible_projects = get_accessible_projects(user)
 
-        # Get tasks assigned to user
+        # Tasks accessible to user (assignee or reporter)
         user_tasks = Task.objects.filter(
-            assignee=user,
-            sprint__milestone__project__in=accessible_projects
-        ).select_related('sprint__milestone__project')
+            Q(assignee=user) | Q(assignees=user),
+            sprint__milestone__project__in=accessible_projects,
+        ).distinct().select_related('sprint__milestone__project')
 
-        # Calculate stats by project
-        project_stats = {}
-        total_tasks = 0
-        total_completed = 0
+        # Total estimated hours across user tasks
+        total_estimated = float(
+            user_tasks.aggregate(s=Sum('estimated_hours'))['s'] or 0
+        )
 
+        # All time logs by this user
+        user_logs = TimeLog.objects.filter(
+            user=user,
+            task__sprint__milestone__project__in=accessible_projects,
+        ).select_related('task__sprint__milestone__project')
+
+        total_logged = float(
+            user_logs.aggregate(s=Sum('hours'))['s'] or 0
+        )
+
+        # Per-project breakdown
+        project_stats: dict = {}
         for task in user_tasks:
-            project_name = task.sprint.milestone.project.name if task.sprint and task.sprint.milestone and task.sprint.milestone.project else 'Unassigned'
+            project = task.sprint.milestone.project if task.sprint and task.sprint.milestone else None
+            name = project.name if project else 'Unassigned'
+            if name not in project_stats:
+                project_stats[name] = {'estimated': 0.0, 'logged': 0.0, 'tasks_count': 0}
+            project_stats[name]['tasks_count'] += 1
+            project_stats[name]['estimated'] += float(task.estimated_hours or 0)
 
-            if project_name not in project_stats:
-                project_stats[project_name] = {
-                    'total': 0,
-                    'completed': 0,
-                    'in_progress': 0,
-                }
+        for log in user_logs:
+            project = log.task.sprint.milestone.project if log.task.sprint and log.task.sprint.milestone else None
+            name = project.name if project else 'Unassigned'
+            if name not in project_stats:
+                project_stats[name] = {'estimated': 0.0, 'logged': 0.0, 'tasks_count': 0}
+            project_stats[name]['logged'] += float(log.hours)
 
-            project_stats[project_name]['total'] += 1
-            total_tasks += 1
-
-            if task.status == 'Done':
-                project_stats[project_name]['completed'] += 1
-                total_completed += 1
-            elif task.status == 'In Progress':
-                project_stats[project_name]['in_progress'] += 1
-
-        # Convert to list
         projects_list = [
             {
                 'project_name': name,
-                'estimated_hours': data['total'],  # Using task count as placeholder
-                'logged_hours': data['completed'],  # Using completed count as placeholder
-                'tasks_count': data['total'],
-                'utilization': round((data['completed'] / data['total'] * 100) if data['total'] > 0 else 0, 1),
+                'estimated_hours': round(data['estimated'], 2),
+                'logged_hours': round(data['logged'], 2),
+                'tasks_count': data['tasks_count'],
+                'utilization': round(
+                    (data['logged'] / data['estimated'] * 100) if data['estimated'] > 0 else 0, 1
+                ),
             }
             for name, data in project_stats.items()
         ]
-        projects_list.sort(key=lambda x: x['tasks_count'], reverse=True)
+        projects_list.sort(key=lambda x: x['logged_hours'], reverse=True)
 
-        utilization = round((total_completed / total_tasks * 100) if total_tasks > 0 else 0, 1)
+        utilization = round(
+            (total_logged / total_estimated * 100) if total_estimated > 0 else 0, 1
+        )
 
         return Response({
-            'total_estimated_hours': total_tasks,  # Total tasks as placeholder
-            'total_logged_hours': total_completed,  # Completed tasks as placeholder
+            'total_estimated_hours': round(total_estimated, 2),
+            'total_logged_hours': round(total_logged, 2),
             'utilization_percentage': utilization,
             'projects': projects_list[:5],
             'total_projects': len(projects_list),
