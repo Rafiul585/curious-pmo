@@ -843,7 +843,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D9 — Docs / Wiki
+## [x] D9 — Docs / Wiki
 
 **Why:** Project documentation, meeting notes, and SOPs currently live elsewhere (Notion, Confluence, Google Docs) and are disconnected from tasks.
 
