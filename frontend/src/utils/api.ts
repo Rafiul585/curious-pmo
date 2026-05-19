@@ -91,6 +91,7 @@ export const api = createApi({
     'CustomField',
     'CustomFieldValue',
     'Automation',
+    'Goal',
   ],
   endpoints: () => ({}),
 });

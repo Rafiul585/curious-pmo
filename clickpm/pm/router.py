@@ -4,6 +4,7 @@ from pm.views.user_views import UserViewSet
 # from pm.views.user_views import UserViewSet, RegisterView, LoginView, LogoutView, RefreshTokenView, ChangePasswordView
 from pm.views.role_views import RoleViewSet
 from pm.views.project_views import ProjectViewSet, MilestoneViewSet, SprintViewSet, ProjectStatusViewSet, CustomFieldDefinitionViewSet, AutomationRuleViewSet
+from pm.views.goal_views import GoalViewSet, GoalTargetViewSet
 from pm.views.task_views import TaskViewSet, TaskDependencyViewSet, TimeLogViewSet
 from pm.views.checklist_views import ChecklistViewSet, ChecklistItemViewSet
 from pm.views.tag_views import TagViewSet
@@ -31,6 +32,10 @@ router.register(r'sprints', SprintViewSet, basename='sprint')
 router.register(r'project-statuses', ProjectStatusViewSet, basename='project-status')
 router.register(r'custom-fields', CustomFieldDefinitionViewSet, basename='custom-field')
 router.register(r'automations', AutomationRuleViewSet, basename='automation')
+
+# Goals / OKRs
+router.register(r'goals', GoalViewSet, basename='goal')
+router.register(r'goal-targets', GoalTargetViewSet, basename='goal-target')
 
 # Tasks
 router.register(r'tasks', TaskViewSet, basename='task')
