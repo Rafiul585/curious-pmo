@@ -49,6 +49,16 @@ export interface ProjectDetail extends Project {
     health_status?: 'on_track' | 'at_risk' | 'behind' | 'critical' | null;
     start_date?: string;
     end_date?: string;
+    sprints?: { id: number; name: string }[];
+    completion_percentage?: number;
+    description?: string;
+  }[];
+  custom_statuses?: {
+    id: number;
+    name: string;
+    color: string;
+    order: number;
+    is_done_state: boolean;
   }[];
 }
 

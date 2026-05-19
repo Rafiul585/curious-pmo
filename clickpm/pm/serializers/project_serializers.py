@@ -1,6 +1,13 @@
 from rest_framework import serializers
-from pm.models.project_models import Project, ProjectMember, Milestone, Sprint
+from pm.models.project_models import Project, ProjectMember, ProjectStatus, Milestone, Sprint
 from pm.serializers.user_serializers import UserMinimalSerializer, RoleSerializer
+
+
+class ProjectStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectStatus
+        fields = ['id', 'project', 'name', 'color', 'order', 'is_done_state']
+        read_only_fields = ['id']
 
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
@@ -96,13 +103,14 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     members = ProjectMemberSerializer(source='projectmember_set', many=True, read_only=True)
     milestones = MilestoneDetailSerializer(many=True, read_only=True)
     workspace_name = serializers.CharField(source='workspace.name', read_only=True)
+    custom_statuses = ProjectStatusSerializer(many=True, read_only=True)
 
     class Meta:
         model = Project
         fields = [
             'id', 'name', 'description', 'start_date', 'end_date',
             'status', 'health_status', 'workspace', 'workspace_name', 'members', 'milestones',
-            'tags', 'archived', 'created_at', 'updated_at'
+            'tags', 'archived', 'custom_statuses', 'created_at', 'updated_at'
         ]
 
 

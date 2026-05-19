@@ -38,12 +38,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   Critical: '#f44336',
 };
 
-const COLUMN_COLORS: Record<string, string> = {
-  todo: '#9e9e9e',
-  in_progress: '#2196f3',
-  review: '#ff9800',
-  done: '#4caf50',
-};
+const DEFAULT_COLUMN_COLOR = '#9e9e9e';
 
 // Module-level variable to store dragged task ID (workaround for dataTransfer issues)
 let currentDraggedTaskId: number | null = null;
@@ -232,7 +227,7 @@ const KanbanColumnComponent = ({
           p: 1.5,
           borderBottom: 1,
           borderColor: 'divider',
-          bgcolor: COLUMN_COLORS[column.id],
+          bgcolor: column.color || DEFAULT_COLUMN_COLOR,
           borderRadius: '8px 8px 0 0',
         }}
       >

@@ -452,10 +452,18 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                           size="small"
                           sx={{ minWidth: 120 }}
                         >
-                          <MenuItem value="To-do">To Do</MenuItem>
-                          <MenuItem value="In Progress">In Progress</MenuItem>
-                          <MenuItem value="Review">Review</MenuItem>
-                          <MenuItem value="Done">Done</MenuItem>
+                          {project?.custom_statuses && project.custom_statuses.length > 0 ? (
+                            project.custom_statuses.map((s) => (
+                              <MenuItem key={s.id} value={s.name}>{s.name}</MenuItem>
+                            ))
+                          ) : (
+                            [
+                              <MenuItem key="todo" value="To-do">To Do</MenuItem>,
+                              <MenuItem key="inprogress" value="In Progress">In Progress</MenuItem>,
+                              <MenuItem key="review" value="Review">Review</MenuItem>,
+                              <MenuItem key="done" value="Done">Done</MenuItem>,
+                            ]
+                          )}
                         </TextField>
                         <TextField
                           label="Priority"

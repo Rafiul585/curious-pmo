@@ -50,6 +50,8 @@ import {
   Assignment,
   Speed,
   Close,
+  Settings,
+  Circle,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -61,6 +63,11 @@ import {
   useGetAvailableMembersQuery,
 } from '../api/projectApi';
 import { useListMilestonesQuery, useCreateMilestoneMutation } from '../api/milestoneApi';
+import {
+  useListProjectStatusesQuery,
+  useCreateProjectStatusMutation,
+  useDeleteProjectStatusMutation,
+} from '../api/projectStatusApi';
 import { useListTasksQuery, useBulkUpdateTasksMutation, useCreateTaskMutation } from '../api/taskApi';
 import { MilestoneManager } from '../components/projects/MilestoneManager';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
@@ -155,6 +162,11 @@ export const ProjectDetailPage = () => {
   const [addTaskTitle, setAddTaskTitle] = useState('');
   const [bulkUpdate] = useBulkUpdateTasksMutation();
   const [createTask] = useCreateTaskMutation();
+  const { data: projectStatuses } = useListProjectStatusesQuery(projectId);
+  const [createStatus] = useCreateProjectStatusMutation();
+  const [deleteStatus] = useDeleteProjectStatusMutation();
+  const [newStatusForm, setNewStatusForm] = useState({ name: '', color: '#6B7280', is_done_state: false });
+  const [showAddStatus, setShowAddStatus] = useState(false);
 
   const firstSprintId = milestones?.flatMap((m) => m.sprints ?? []).find((s) => !!s)?.id;
 
@@ -404,6 +416,7 @@ export const ProjectDetailPage = () => {
           <Tab icon={<FlagCircle />} iconPosition="start" label={`Milestones (${milestones?.length || 0})`} />
           <Tab icon={<People />} iconPosition="start" label={`Members (${project.members?.length || 0})`} />
           <Tab icon={<History />} iconPosition="start" label="Activity" />
+          <Tab icon={<Settings />} iconPosition="start" label="Settings" />
         </Tabs>
 
         {/* Overview Tab */}
@@ -807,6 +820,129 @@ export const ProjectDetailPage = () => {
         <TabPanel value={tabValue} index={3}>
           <Box sx={{ px: 3 }}>
             <ActivityLogList projectId={projectId} showFilters limit={50} />
+          </Box>
+        </TabPanel>
+
+        {/* Settings Tab */}
+        <TabPanel value={tabValue} index={4}>
+          <Box sx={{ px: 3 }}>
+            <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+              Custom Task Statuses
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Define custom statuses for tasks in this project. When set, these replace the default statuses (To-do, In Progress, Review, Done) on the Kanban board and task editor.
+            </Typography>
+
+            {/* Existing statuses */}
+            {projectStatuses && projectStatuses.length > 0 ? (
+              <Stack spacing={1} sx={{ mb: 3 }}>
+                {projectStatuses.map((s) => (
+                  <Paper key={s.id} variant="outlined" sx={{ px: 2, py: 1.5 }}>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <Circle sx={{ color: s.color, fontSize: 18 }} />
+                      <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
+                        {s.name}
+                      </Typography>
+                      {s.is_done_state && (
+                        <Chip label="Done state" size="small" color="success" variant="outlined" />
+                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        Order: {s.order}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={async () => {
+                          try {
+                            await deleteStatus({ id: s.id, projectId }).unwrap();
+                            enqueueSnackbar('Status deleted', { variant: 'success' });
+                          } catch {
+                            enqueueSnackbar('Failed to delete status', { variant: 'error' });
+                          }
+                        }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : (
+              <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: 'action.hover' }}>
+                <Typography variant="body2" color="text.secondary">
+                  No custom statuses defined. Default statuses (To-do, In Progress, Review, Done) are used.
+                </Typography>
+              </Paper>
+            )}
+
+            {/* Add new status */}
+            {showAddStatus ? (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>New Status</Typography>
+                <Stack spacing={2}>
+                  <Stack direction="row" spacing={2}>
+                    <TextField
+                      label="Name"
+                      value={newStatusForm.name}
+                      onChange={(e) => setNewStatusForm((f) => ({ ...f, name: e.target.value }))}
+                      size="small"
+                      sx={{ flex: 1 }}
+                      onKeyDown={(e) => { if (e.key === 'Escape') setShowAddStatus(false); }}
+                    />
+                    <TextField
+                      label="Color"
+                      type="color"
+                      value={newStatusForm.color}
+                      onChange={(e) => setNewStatusForm((f) => ({ ...f, color: e.target.value }))}
+                      size="small"
+                      sx={{ width: 90 }}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Stack>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <Checkbox
+                      size="small"
+                      checked={newStatusForm.is_done_state}
+                      onChange={(e) => setNewStatusForm((f) => ({ ...f, is_done_state: e.target.checked }))}
+                    />
+                    <Typography variant="body2">Mark as "done" state (counts toward completion)</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button size="small" onClick={() => setShowAddStatus(false)}>Cancel</Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!newStatusForm.name.trim()}
+                      onClick={async () => {
+                        if (!newStatusForm.name.trim()) return;
+                        try {
+                          await createStatus({
+                            projectId,
+                            data: {
+                              name: newStatusForm.name.trim(),
+                              color: newStatusForm.color,
+                              is_done_state: newStatusForm.is_done_state,
+                              order: (projectStatuses?.length ?? 0),
+                            },
+                          }).unwrap();
+                          enqueueSnackbar('Status created', { variant: 'success' });
+                          setNewStatusForm({ name: '', color: '#6B7280', is_done_state: false });
+                          setShowAddStatus(false);
+                        } catch {
+                          enqueueSnackbar('Failed to create status', { variant: 'error' });
+                        }
+                      }}
+                    >
+                      Create
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            ) : (
+              <Button startIcon={<Add />} variant="outlined" onClick={() => setShowAddStatus(true)}>
+                Add Status
+              </Button>
+            )}
           </Box>
         </TabPanel>
       </Paper>

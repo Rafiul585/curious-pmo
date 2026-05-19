@@ -2,13 +2,31 @@ from pm.models import Task, Sprint, Project
 from django.db.models import Q
 
 
-# Kanban column definitions matching Task.STATUS_CHOICES
+# Default kanban column definitions (used when project has no custom statuses)
 KANBAN_COLUMNS = [
-    {'id': 'todo', 'name': 'To-do', 'status': 'To-do'},
-    {'id': 'in_progress', 'name': 'In Progress', 'status': 'In Progress'},
-    {'id': 'review', 'name': 'Review', 'status': 'Review'},
-    {'id': 'done', 'name': 'Done', 'status': 'Done'},
+    {'id': 'todo', 'name': 'To-do', 'status': 'To-do', 'color': '#9e9e9e', 'is_done_state': False},
+    {'id': 'in_progress', 'name': 'In Progress', 'status': 'In Progress', 'color': '#2196f3', 'is_done_state': False},
+    {'id': 'review', 'name': 'Review', 'status': 'Review', 'color': '#ff9800', 'is_done_state': False},
+    {'id': 'done', 'name': 'Done', 'status': 'Done', 'color': '#4caf50', 'is_done_state': True},
 ]
+
+
+def _get_columns_for_project(project):
+    """Return kanban column definitions for a project, using custom statuses if defined."""
+    from pm.models.project_models import ProjectStatus
+    custom = list(ProjectStatus.objects.filter(project=project).order_by('order', 'id'))
+    if custom:
+        return [
+            {
+                'id': f'status_{ps.id}',
+                'name': ps.name,
+                'status': ps.name,
+                'color': ps.color,
+                'is_done_state': ps.is_done_state,
+            }
+            for ps in custom
+        ]
+    return KANBAN_COLUMNS
 
 
 def _serialize_task(task):
@@ -50,7 +68,7 @@ def get_kanban_for_sprint(sprint_id):
     Returns tasks grouped by status columns.
     """
     try:
-        sprint = Sprint.objects.get(id=sprint_id)
+        sprint = Sprint.objects.select_related('milestone__project').get(id=sprint_id)
     except Sprint.DoesNotExist:
         return None
 
@@ -58,13 +76,15 @@ def get_kanban_for_sprint(sprint_id):
         'assignee', 'reporter', 'sprint'
     ).prefetch_related('dependent_on__depends_on')
 
+    columns_def = _get_columns_for_project(sprint.milestone.project)
     columns = []
-    for col in KANBAN_COLUMNS:
+    for col in columns_def:
         column_tasks = tasks.filter(status=col['status']).order_by('position', 'due_date', '-priority', 'created_at')
         columns.append({
             'id': col['id'],
             'name': col['name'],
             'status': col['status'],
+            'color': col['color'],
             'tasks': [_serialize_task(t) for t in column_tasks],
             'count': column_tasks.count(),
         })
@@ -103,13 +123,15 @@ def get_kanban_for_project(project_id):
         'assignee', 'reporter', 'sprint', 'sprint__milestone'
     ).prefetch_related('dependent_on__depends_on')
 
+    columns_def = _get_columns_for_project(project)
     columns = []
-    for col in KANBAN_COLUMNS:
+    for col in columns_def:
         column_tasks = tasks.filter(status=col['status']).order_by('position', 'due_date', '-priority', 'created_at')
         columns.append({
             'id': col['id'],
             'name': col['name'],
             'status': col['status'],
+            'color': col['color'],
             'tasks': [_serialize_task(t) for t in column_tasks],
             'count': column_tasks.count(),
         })
@@ -163,9 +185,8 @@ def move_task_to_column(task_id, new_status, user=None):
     Move a task to a different Kanban column (change status).
     Returns the updated task or None if not found.
     """
-    valid_statuses = [col['status'] for col in KANBAN_COLUMNS]
-    if new_status not in valid_statuses:
-        return {'error': f'Invalid status. Must be one of: {valid_statuses}'}
+    if not new_status or not isinstance(new_status, str):
+        return {'error': 'Invalid status'}
 
     try:
         task = Task.objects.get(id=task_id)

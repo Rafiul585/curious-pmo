@@ -6,12 +6,13 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
 
-from pm.models.project_models import Project, ProjectMember, Milestone, Sprint
+from pm.models.project_models import Project, ProjectMember, Milestone, Sprint, ProjectStatus
 from pm.models.workspace_models import WorkspaceMember
 from pm.serializers.project_serializers import (
     ProjectSerializer, ProjectDetailSerializer, ProjectCreateUpdateSerializer,
     MilestoneSerializer, MilestoneCreateUpdateSerializer,
-    SprintSerializer, SprintCreateUpdateSerializer
+    SprintSerializer, SprintCreateUpdateSerializer,
+    ProjectStatusSerializer,
 )
 from pm.permissions import IsProjectMember, CanViewProject
 from pm.utils.permission_helpers import get_accessible_projects
@@ -308,6 +309,26 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         return Response(data)
 
+    @action(detail=True, methods=['GET', 'POST'])
+    def statuses(self, request, pk=None):
+        """
+        GET /api/projects/{id}/statuses/ — list custom statuses
+        POST /api/projects/{id}/statuses/ — create a custom status
+        """
+        project = self.get_object()
+
+        if request.method == 'GET':
+            qs = ProjectStatus.objects.filter(project=project).order_by('order', 'id')
+            return Response(ProjectStatusSerializer(qs, many=True).data)
+
+        data = request.data.copy()
+        data['project'] = project.id
+        serializer = ProjectStatusSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['POST'])
     def update_timeline_item(self, request, pk=None):
         """
@@ -568,3 +589,13 @@ class SprintViewSet(viewsets.ModelViewSet):
         sprint = self.get_object()
         data = get_sprint_burndown(sprint)
         return Response(data)
+
+
+class ProjectStatusViewSet(viewsets.ModelViewSet):
+    """CRUD for individual ProjectStatus records (used for PATCH/DELETE by ID)."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProjectStatusSerializer
+
+    def get_queryset(self):
+        accessible_projects = get_accessible_projects(self.request.user)
+        return ProjectStatus.objects.filter(project__in=accessible_projects)

@@ -86,6 +86,7 @@ export const api = createApi({
     'Dashboard',
     'TimeLog',
     'Checklist',
+    'ProjectStatus',
   ],
   endpoints: () => ({}),
 });

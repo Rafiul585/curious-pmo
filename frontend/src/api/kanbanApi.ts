@@ -33,6 +33,7 @@ export interface KanbanColumn {
   id: string;
   name: string;
   status: string;
+  color?: string;
   tasks: KanbanTask[];
   count: number;
 }

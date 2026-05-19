@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from pm.views.user_views import UserViewSet
 # from pm.views.user_views import UserViewSet, RegisterView, LoginView, LogoutView, RefreshTokenView, ChangePasswordView
 from pm.views.role_views import RoleViewSet
-from pm.views.project_views import ProjectViewSet, MilestoneViewSet, SprintViewSet
+from pm.views.project_views import ProjectViewSet, MilestoneViewSet, SprintViewSet, ProjectStatusViewSet
 from pm.views.task_views import TaskViewSet, TaskDependencyViewSet, TimeLogViewSet
 from pm.views.checklist_views import ChecklistViewSet, ChecklistItemViewSet
 from pm.views.comment_views import CommentViewSet
@@ -27,6 +27,7 @@ router.register(r'workspaces', WorkspaceViewSet, basename='workspace')
 router.register(r'projects', ProjectViewSet, basename='project')
 router.register(r'milestones', MilestoneViewSet, basename='milestone')
 router.register(r'sprints', SprintViewSet, basename='sprint')
+router.register(r'project-statuses', ProjectStatusViewSet, basename='project-status')
 
 # Tasks
 router.register(r'tasks', TaskViewSet, basename='task')
