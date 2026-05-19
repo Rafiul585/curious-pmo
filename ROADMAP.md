@@ -377,7 +377,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C2 — Multiple Assignees Per Task
+## [x] C2 — Multiple Assignees Per Task
 
 **Why:** Pair programming, design reviews, and shared ownership require more than one person on a task.
 
