@@ -350,7 +350,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C1 — Subtasks
+## [x] C1 — Subtasks
 
 **Why:** Teams need to break tasks into smaller pieces. Without subtasks, everything ends up in the description or as separate disconnected tasks.
 
