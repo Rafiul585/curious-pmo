@@ -18,6 +18,7 @@ from pm.permissions import IsTaskAssignee, CanViewProject
 from pm.services.audit_service import AuditService, EventType
 from pm.services.kanban_service import get_kanban_for_user
 from pm.services.notification_service import NotificationService
+from pm.services.automation_service import evaluate_triggers
 
 
 class TaskViewSet(viewsets.ModelViewSet):
@@ -71,6 +72,9 @@ class TaskViewSet(viewsets.ModelViewSet):
         if task.assignee and task.assignee != self.request.user:
             NotificationService.notify_task_assignment(task)
 
+        # Fire automation rules
+        evaluate_triggers(task, 'task_created', {}, {'status': task.status, 'assignee': task.assignee_id})
+
     def perform_update(self, serializer):
         """Update task and log audit event with old/new state"""
         old_state = AuditService.capture_state(serializer.instance)
@@ -94,6 +98,15 @@ class TaskViewSet(viewsets.ModelViewSet):
         # Notify about status change
         if task.status != old_status:
             NotificationService.notify_task_status_change(task, old_status, self.request.user)
+
+        # Fire automation rules
+        if task.status != old_status:
+            evaluate_triggers(task, 'status_change',
+                              {'status': old_status}, {'status': task.status})
+        if task.assignee_id != (old_assignee.id if old_assignee else None):
+            evaluate_triggers(task, 'assignee_changed',
+                              {'assignee': old_assignee.id if old_assignee else None},
+                              {'assignee': task.assignee_id})
 
         # Notify watchers about due date change
         if task.due_date != old_due_date:

@@ -1,5 +1,5 @@
 from .user_models import User, Role
-from .project_models import Project, ProjectMember, ProjectStatus, Milestone, Sprint, CustomFieldDefinition, TaskCustomFieldValue
+from .project_models import Project, ProjectMember, ProjectStatus, Milestone, Sprint, CustomFieldDefinition, TaskCustomFieldValue, AutomationRule
 from .task_models import Task, TaskDependency, TimeLog, Checklist, ChecklistItem
 from .workspace_models import Workspace, WorkspaceMember, Tag
 from .comment_models import Comment

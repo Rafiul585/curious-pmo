@@ -90,6 +90,7 @@ export const api = createApi({
     'Tag',
     'CustomField',
     'CustomFieldValue',
+    'Automation',
   ],
   endpoints: () => ({}),
 });

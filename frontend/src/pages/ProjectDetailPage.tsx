@@ -55,7 +55,9 @@ import {
   FileDownload,
   Visibility,
   Repeat,
+  Bolt,
 } from '@mui/icons-material';
+import { Switch, FormControlLabel } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import {
   useGetProjectQuery,
@@ -86,6 +88,13 @@ import {
   useDeleteCustomFieldMutation,
 } from '../api/customFieldApi';
 import type { CustomFieldDefinition } from '../api/customFieldApi';
+import {
+  useListAutomationsQuery,
+  useCreateAutomationMutation,
+  useUpdateAutomationMutation,
+  useDeleteAutomationMutation,
+} from '../api/automationApi';
+import type { AutomationRule } from '../api/automationApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -192,6 +201,23 @@ export const ProjectDetailPage = () => {
   const [editFieldForm, setEditFieldForm] = useState<{ name: string; options: string; required: boolean }>({
     name: '', options: '', required: false,
   });
+
+  const { data: automations } = useListAutomationsQuery(projectId);
+  const [createAutomation] = useCreateAutomationMutation();
+  const [updateAutomation] = useUpdateAutomationMutation();
+  const [deleteAutomation] = useDeleteAutomationMutation();
+  const [showAddAutomation, setShowAddAutomation] = useState(false);
+  const blankAutomationForm = (): Omit<AutomationRule, 'id' | 'trigger_display' | 'action_display' | 'created_at'> => ({
+    project: projectId,
+    name: '',
+    trigger: 'status_change',
+    conditions: {},
+    action: 'send_notification',
+    action_params: { notify: 'assignees', message: '' },
+    is_active: true,
+  });
+  const [newAutomationForm, setNewAutomationForm] = useState(blankAutomationForm);
+
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [exportAnchor, setExportAnchor] = useState<null | HTMLElement>(null);
 
@@ -1196,6 +1222,224 @@ export const ProjectDetailPage = () => {
             ) : (
               <Button startIcon={<Add />} variant="outlined" onClick={() => setShowAddField(true)}>
                 Add Custom Field
+              </Button>
+            )}
+
+            <Divider sx={{ my: 4 }} />
+
+            {/* ── Automation Rules ── */}
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+              <Bolt color="warning" />
+              <Typography variant="h6" fontWeight={600}>Automation Rules</Typography>
+            </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Automatically trigger actions when task events occur (status change, creation, assignee change).
+            </Typography>
+
+            {/* Existing rules */}
+            {automations && automations.length > 0 && (
+              <Stack spacing={1} sx={{ mb: 3 }}>
+                {automations.map((rule) => (
+                  <Paper key={rule.id} variant="outlined" sx={{ px: 2, py: 1.5 }}>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <Bolt fontSize="small" color={rule.is_active ? 'warning' : 'disabled'} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" fontWeight={600} noWrap>{rule.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          When <strong>{rule.trigger_display}</strong> → {rule.action_display}
+                        </Typography>
+                      </Box>
+                      <Switch
+                        size="small"
+                        checked={rule.is_active}
+                        onChange={async (e) => {
+                          try {
+                            await updateAutomation({ id: rule.id, data: { is_active: e.target.checked } }).unwrap();
+                          } catch {
+                            enqueueSnackbar('Failed to update rule', { variant: 'error' });
+                          }
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={async () => {
+                          try {
+                            await deleteAutomation({ id: rule.id, projectId }).unwrap();
+                            enqueueSnackbar('Rule deleted', { variant: 'success' });
+                          } catch {
+                            enqueueSnackbar('Failed to delete rule', { variant: 'error' });
+                          }
+                        }}
+                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
+
+            {/* Create rule form */}
+            {showAddAutomation ? (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>New Automation Rule</Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Rule name"
+                    size="small"
+                    fullWidth
+                    value={newAutomationForm.name}
+                    onChange={(e) => setNewAutomationForm((f) => ({ ...f, name: e.target.value }))}
+                  />
+                  <TextField
+                    label="Trigger"
+                    select
+                    size="small"
+                    fullWidth
+                    value={newAutomationForm.trigger}
+                    onChange={(e) => setNewAutomationForm((f) => ({ ...f, trigger: e.target.value as AutomationRule['trigger'] }))}
+                  >
+                    <MenuItem value="status_change">Status Change</MenuItem>
+                    <MenuItem value="task_created">Task Created</MenuItem>
+                    <MenuItem value="assignee_changed">Assignee Changed</MenuItem>
+                    <MenuItem value="due_date_passed">Due Date Passed</MenuItem>
+                  </TextField>
+
+                  {/* Conditions for status_change */}
+                  {newAutomationForm.trigger === 'status_change' && (
+                    <Stack direction="row" spacing={1}>
+                      <TextField
+                        label="From status (optional)"
+                        size="small"
+                        fullWidth
+                        value={(newAutomationForm.conditions as Record<string, string>).from_status ?? ''}
+                        onChange={(e) => setNewAutomationForm((f) => ({
+                          ...f, conditions: { ...f.conditions as Record<string, string>, from_status: e.target.value },
+                        }))}
+                      />
+                      <TextField
+                        label="To status (optional)"
+                        size="small"
+                        fullWidth
+                        value={(newAutomationForm.conditions as Record<string, string>).to_status ?? ''}
+                        onChange={(e) => setNewAutomationForm((f) => ({
+                          ...f, conditions: { ...f.conditions as Record<string, string>, to_status: e.target.value },
+                        }))}
+                      />
+                    </Stack>
+                  )}
+
+                  <TextField
+                    label="Action"
+                    select
+                    size="small"
+                    fullWidth
+                    value={newAutomationForm.action}
+                    onChange={(e) => setNewAutomationForm((f) => ({ ...f, action: e.target.value as AutomationRule['action'] }))}
+                  >
+                    <MenuItem value="send_notification">Send Notification</MenuItem>
+                    <MenuItem value="change_status">Change Status</MenuItem>
+                    <MenuItem value="change_priority">Change Priority</MenuItem>
+                    <MenuItem value="assign_to">Assign To</MenuItem>
+                  </TextField>
+
+                  {/* Action params */}
+                  {newAutomationForm.action === 'send_notification' && (
+                    <Stack spacing={1}>
+                      <TextField
+                        label="Notify"
+                        select
+                        size="small"
+                        fullWidth
+                        value={(newAutomationForm.action_params as Record<string, string>).notify ?? 'assignees'}
+                        onChange={(e) => setNewAutomationForm((f) => ({
+                          ...f, action_params: { ...f.action_params as Record<string, string>, notify: e.target.value },
+                        }))}
+                      >
+                        <MenuItem value="assignees">Assignees</MenuItem>
+                        <MenuItem value="reporter">Reporter</MenuItem>
+                        <MenuItem value="project_owner">Project Owner</MenuItem>
+                        <MenuItem value="project_members">All Project Members</MenuItem>
+                      </TextField>
+                      <TextField
+                        label="Message (optional)"
+                        size="small"
+                        fullWidth
+                        value={(newAutomationForm.action_params as Record<string, string>).message ?? ''}
+                        onChange={(e) => setNewAutomationForm((f) => ({
+                          ...f, action_params: { ...f.action_params as Record<string, string>, message: e.target.value },
+                        }))}
+                      />
+                    </Stack>
+                  )}
+                  {newAutomationForm.action === 'change_status' && (
+                    <TextField
+                      label="New status"
+                      size="small"
+                      fullWidth
+                      value={(newAutomationForm.action_params as Record<string, string>).status ?? ''}
+                      onChange={(e) => setNewAutomationForm((f) => ({
+                        ...f, action_params: { status: e.target.value },
+                      }))}
+                    />
+                  )}
+                  {newAutomationForm.action === 'change_priority' && (
+                    <TextField
+                      label="New priority"
+                      select
+                      size="small"
+                      fullWidth
+                      value={(newAutomationForm.action_params as Record<string, string>).priority ?? ''}
+                      onChange={(e) => setNewAutomationForm((f) => ({
+                        ...f, action_params: { priority: e.target.value },
+                      }))}
+                    >
+                      <MenuItem value="Low">Low</MenuItem>
+                      <MenuItem value="Medium">Medium</MenuItem>
+                      <MenuItem value="High">High</MenuItem>
+                      <MenuItem value="Critical">Critical</MenuItem>
+                    </TextField>
+                  )}
+
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        size="small"
+                        checked={newAutomationForm.is_active}
+                        onChange={(e) => setNewAutomationForm((f) => ({ ...f, is_active: e.target.checked }))}
+                      />
+                    }
+                    label="Active"
+                  />
+
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button size="small" onClick={() => { setShowAddAutomation(false); setNewAutomationForm(blankAutomationForm()); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!newAutomationForm.name.trim()}
+                      onClick={async () => {
+                        try {
+                          await createAutomation(newAutomationForm).unwrap();
+                          enqueueSnackbar('Automation rule created', { variant: 'success' });
+                          setShowAddAutomation(false);
+                          setNewAutomationForm(blankAutomationForm());
+                        } catch {
+                          enqueueSnackbar('Failed to create rule', { variant: 'error' });
+                        }
+                      }}
+                    >
+                      Create Rule
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            ) : (
+              <Button startIcon={<Add />} variant="outlined" onClick={() => setShowAddAutomation(true)}>
+                Add Automation Rule
               </Button>
             )}
           </Box>

@@ -101,6 +101,37 @@ class TaskCustomFieldValue(models.Model):
         return f"Task {self.task_id} / {self.field.name} = {self.value}"
 
 
+# ─── Automation Rules ────────────────────────────────────────────────────────
+
+class AutomationRule(models.Model):
+    TRIGGER_CHOICES = [
+        ('status_change',    'Status Change'),
+        ('due_date_passed',  'Due Date Passed'),
+        ('task_created',     'Task Created'),
+        ('assignee_changed', 'Assignee Changed'),
+    ]
+    ACTION_CHOICES = [
+        ('send_notification', 'Send Notification'),
+        ('change_status',     'Change Status'),
+        ('change_priority',   'Change Priority'),
+        ('assign_to',         'Assign To'),
+    ]
+    project       = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='automations')
+    name          = models.CharField(max_length=200)
+    trigger       = models.CharField(max_length=50, choices=TRIGGER_CHOICES)
+    conditions    = models.JSONField(default=dict, blank=True)
+    action        = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    action_params = models.JSONField(default=dict, blank=True)
+    is_active     = models.BooleanField(default=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.project.name} — {self.name}"
+
+
 # Project membership
 class ProjectMember(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

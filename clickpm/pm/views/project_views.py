@@ -6,7 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
 
-from pm.models.project_models import Project, ProjectMember, Milestone, Sprint, ProjectStatus, CustomFieldDefinition
+from pm.models.project_models import Project, ProjectMember, Milestone, Sprint, ProjectStatus, CustomFieldDefinition, AutomationRule
 from pm.models.workspace_models import WorkspaceMember
 from pm.serializers.project_serializers import (
     ProjectSerializer, ProjectDetailSerializer, ProjectCreateUpdateSerializer,
@@ -15,6 +15,7 @@ from pm.serializers.project_serializers import (
     ProjectStatusSerializer,
 )
 from pm.serializers.custom_field_serializers import CustomFieldDefinitionSerializer
+from pm.serializers.automation_serializers import AutomationRuleSerializer
 from pm.permissions import IsProjectMember, CanViewProject
 from pm.utils.permission_helpers import get_accessible_projects
 from pm.services.audit_service import AuditService, EventType
@@ -640,3 +641,20 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         accessible_projects = get_accessible_projects(self.request.user)
         return CustomFieldDefinition.objects.filter(project__in=accessible_projects).order_by('order', 'id')
+
+
+class AutomationRuleViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for AutomationRule.
+    GET  /api/automations/?project=<id>  — list rules for a project
+    POST /api/automations/               — create a rule
+    PATCH/DELETE /api/automations/<id>/  — update/delete a rule
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = AutomationRuleSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['project', 'is_active']
+
+    def get_queryset(self):
+        accessible_projects = get_accessible_projects(self.request.user)
+        return AutomationRule.objects.filter(project__in=accessible_projects)
