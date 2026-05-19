@@ -52,6 +52,7 @@ import {
   Close,
   Settings,
   Circle,
+  FileDownload,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -68,6 +69,9 @@ import {
   useCreateProjectStatusMutation,
   useDeleteProjectStatusMutation,
 } from '../api/projectStatusApi';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../store';
+import { downloadExport } from '../utils/exportDownload';
 import { useListTasksQuery, useBulkUpdateTasksMutation, useCreateTaskMutation } from '../api/taskApi';
 import { MilestoneManager } from '../components/projects/MilestoneManager';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
@@ -167,6 +171,8 @@ export const ProjectDetailPage = () => {
   const [deleteStatus] = useDeleteProjectStatusMutation();
   const [newStatusForm, setNewStatusForm] = useState({ name: '', color: '#6B7280', is_done_state: false });
   const [showAddStatus, setShowAddStatus] = useState(false);
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const [exportAnchor, setExportAnchor] = useState<null | HTMLElement>(null);
 
   const firstSprintId = milestones?.flatMap((m) => m.sprints ?? []).find((s) => !!s)?.id;
 
@@ -626,9 +632,40 @@ export const ProjectDetailPage = () => {
                       </Typography>
                     )}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {tasks?.length || 0} total
-                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="body2" color="text.secondary">
+                      {tasks?.length || 0} total
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<FileDownload fontSize="small" />}
+                      onClick={(e) => setExportAnchor(e.currentTarget)}
+                    >
+                      Export
+                    </Button>
+                    <Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}>
+                      {(['csv', 'xlsx'] as const).map((fmt) => (
+                        <MenuItem
+                          key={fmt}
+                          onClick={async () => {
+                            setExportAnchor(null);
+                            try {
+                              await downloadExport(
+                                `/projects/${projectId}/export/?format=${fmt}`,
+                                `${project.name}_tasks.${fmt}`,
+                                accessToken,
+                              );
+                            } catch {
+                              enqueueSnackbar('Export failed', { variant: 'error' });
+                            }
+                          }}
+                        >
+                          Export as {fmt.toUpperCase()}
+                        </MenuItem>
+                      ))}
+                    </Menu>
+                  </Stack>
                 </Stack>
                 {tasks && tasks.length > 0 ? (
                   <Box>

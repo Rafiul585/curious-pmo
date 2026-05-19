@@ -309,6 +309,29 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         return Response(data)
 
+    @action(detail=True, methods=['GET'])
+    def export(self, request, pk=None):
+        """
+        GET /api/projects/{id}/export/?format=csv|xlsx
+        Downloads all tasks in this project as a file.
+        """
+        from pm.services.export_service import generate_csv_response, generate_xlsx_response
+        from pm.models.task_models import Task
+
+        project = self.get_object()
+        export_format = request.query_params.get('format', 'csv')
+
+        tasks = Task.objects.filter(
+            sprint__milestone__project=project
+        ).select_related(
+            'assignee', 'reporter', 'sprint__milestone__project'
+        ).prefetch_related('tags', 'assignees')
+
+        filename = project.name + '_tasks'
+        if export_format == 'xlsx':
+            return generate_xlsx_response(tasks, filename=filename)
+        return generate_csv_response(tasks, filename=filename)
+
     @action(detail=True, methods=['GET', 'POST'])
     def statuses(self, request, pk=None):
         """

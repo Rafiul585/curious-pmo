@@ -16,6 +16,7 @@ import {
   FormControl,
   Grid,
   InputLabel,
+  Menu,
   MenuItem,
   Paper,
   Select,
@@ -33,6 +34,7 @@ import {
   Flag,
   CalendarMonth,
   FilterList,
+  FileDownload,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useCreateTaskMutation, useListTasksQuery, useGetMyTasksQuery, Task } from '../api/taskApi';
@@ -42,6 +44,9 @@ import { useListSprintsQuery } from '../api/sprintApi';
 import { useGetCurrentUserQuery } from '../api/userApi';
 import { TaskDetailModal } from '../components/tasks/TaskDetailModal';
 import { useListTagsQuery } from '../api/tagApi';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../store';
+import { downloadExport } from '../utils/exportDownload';
 
 const priorityColors: Record<string, 'default' | 'info' | 'warning' | 'error'> = {
   'Low': 'default',
@@ -102,6 +107,8 @@ export const TasksPage = () => {
   const { data: currentUser } = useGetCurrentUserQuery();
   const { data: allTags } = useListTagsQuery();
   const [createTask, { isLoading: creating }] = useCreateTaskMutation();
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const [exportAnchor, setExportAnchor] = useState<null | HTMLElement>(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -325,6 +332,35 @@ export const TasksPage = () => {
               Clear Filters
             </Button>
           )}
+          <Box sx={{ flex: 1 }} />
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<FileDownload fontSize="small" />}
+            onClick={(e) => setExportAnchor(e.currentTarget)}
+          >
+            Export
+          </Button>
+          <Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}>
+            {(['csv', 'xlsx'] as const).map((fmt) => (
+              <MenuItem
+                key={fmt}
+                onClick={async () => {
+                  setExportAnchor(null);
+                  const params = new URLSearchParams({ format: fmt });
+                  if (filters.status) params.set('status', filters.status);
+                  if (filters.priority) params.set('priority', filters.priority);
+                  try {
+                    await downloadExport(`/tasks/export/?${params}`, `tasks.${fmt}`, accessToken);
+                  } catch {
+                    enqueueSnackbar('Export failed', { variant: 'error' });
+                  }
+                }}
+              >
+                Export as {fmt.toUpperCase()}
+              </MenuItem>
+            ))}
+          </Menu>
         </Stack>
       </Paper>
 

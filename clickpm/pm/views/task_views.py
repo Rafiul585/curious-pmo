@@ -160,6 +160,40 @@ class TaskViewSet(viewsets.ModelViewSet):
         return Response({'status': f'Task status changed to {new_status}'})
 
     @action(detail=False, methods=['GET'])
+    def export(self, request):
+        """
+        GET /api/tasks/export/?format=csv|xlsx&project=N&status=X&priority=X
+        Downloads all matching tasks as a CSV or Excel file.
+        """
+        from pm.services.export_service import generate_csv_response, generate_xlsx_response
+
+        export_format = request.query_params.get('format', 'csv')
+        queryset = self.get_queryset()
+
+        for field in ['status', 'priority', 'assignee', 'reporter', 'sprint']:
+            value = request.query_params.get(field)
+            if value:
+                queryset = queryset.filter(**{field: value})
+
+        project_id = request.query_params.get('project')
+        filename = 'tasks'
+        if project_id:
+            queryset = queryset.filter(sprint__milestone__project_id=project_id)
+            try:
+                from pm.models.project_models import Project
+                filename = Project.objects.get(id=project_id).name + '_tasks'
+            except Exception:
+                pass
+
+        tasks = queryset.select_related(
+            'assignee', 'reporter', 'sprint__milestone__project'
+        ).prefetch_related('tags', 'assignees')
+
+        if export_format == 'xlsx':
+            return generate_xlsx_response(tasks, filename=filename)
+        return generate_csv_response(tasks, filename=filename)
+
+    @action(detail=False, methods=['GET'])
     def my_tasks(self, request):
         tasks = Task.objects.filter(assignee=request.user)
         serializer = TaskSerializer(tasks, many=True, context={'request': request})
