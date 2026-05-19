@@ -562,7 +562,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C9 — Recurring Tasks
+## [x] C9 — Recurring Tasks
 
 **Why:** Standups, weekly reports, monthly billing tasks, and regular reviews all need to be manually recreated every cycle without this feature.
 
