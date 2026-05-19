@@ -727,7 +727,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D4 — Task Templates
+## [x] D4 — Task Templates
 
 **Why:** Common task types (bug reports, feature requests, onboarding checklists) have the same structure every time. Templates eliminate repetitive setup.
 
