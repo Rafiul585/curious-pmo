@@ -521,7 +521,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C7 — Export (CSV / Excel)
+## [x] C7 — Export (CSV / Excel)
 
 **Why:** PMs need to share status reports, import into Excel for stakeholders, or do offline analysis. Missing export is a blocker for enterprise adoption.
 
@@ -541,7 +541,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C8 — Task Watchers / Followers
+## [x] C8 — Task Watchers / Followers
 
 **Why:** Managers and stakeholders need visibility on tasks without being the assignee. Currently, if you're not assigned or @mentioned, you get no notifications.
 
