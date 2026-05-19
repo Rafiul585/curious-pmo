@@ -803,7 +803,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D7 — Velocity & Sprint Reporting
+## [x] D7 — Velocity & Sprint Reporting
 
 **Why:** Sprint velocity (story points / task count completed per sprint) is the core metric for agile forecasting. It's not surfaced anywhere currently.
 
