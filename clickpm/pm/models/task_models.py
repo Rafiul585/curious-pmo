@@ -33,6 +33,9 @@ class Task(models.Model):
     assignee = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks_assigned'
     )
+    assignees = models.ManyToManyField(
+        User, blank=True, related_name='assigned_tasks'
+    )
     reporter = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks_reported'
     )

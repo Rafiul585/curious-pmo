@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from pm.models.task_models import Task, TaskDependency, TimeLog
+from pm.models.user_models import User
 from pm.serializers.user_serializers import UserMinimalSerializer
 
 
@@ -22,6 +23,7 @@ class TaskDependencySerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     assignee_details = UserMinimalSerializer(source='assignee', read_only=True)
     reporter_details = UserMinimalSerializer(source='reporter', read_only=True)
+    assignees_details = UserMinimalSerializer(source='assignees', many=True, read_only=True)
     dependencies = TaskDependencySerializer(source='dependent_on', many=True, read_only=True)
     sprint_name = serializers.CharField(source='sprint.name', read_only=True)
     is_blocked = serializers.SerializerMethodField()
@@ -31,7 +33,8 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = [
-            'id', 'sprint', 'sprint_name', 'title', 'description', 'assignee', 'assignee_details',
+            'id', 'sprint', 'sprint_name', 'title', 'description',
+            'assignee', 'assignee_details', 'assignees', 'assignees_details',
             'reporter', 'reporter_details', 'status', 'priority', 'start_date',
             'due_date', 'estimated_hours', 'actual_hours', 'parent',
             'dependencies', 'is_blocked', 'subtask_count', 'subtasks_done',
@@ -55,6 +58,7 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     """Detailed serializer with related fields for retrieve view"""
     assignee_details = UserMinimalSerializer(source='assignee', read_only=True)
     reporter_details = UserMinimalSerializer(source='reporter', read_only=True)
+    assignees_details = UserMinimalSerializer(source='assignees', many=True, read_only=True)
     dependencies = TaskDependencySerializer(source='dependent_on', many=True, read_only=True)
     sprint_name = serializers.CharField(source='sprint.name', read_only=True)
     sprint_details = serializers.SerializerMethodField()
@@ -67,7 +71,8 @@ class TaskDetailSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'sprint', 'sprint_name', 'sprint_details', 'title', 'description',
-            'assignee', 'assignee_details', 'reporter', 'reporter_details',
+            'assignee', 'assignee_details', 'assignees', 'assignees_details',
+            'reporter', 'reporter_details',
             'status', 'priority', 'start_date', 'due_date',
             'estimated_hours', 'actual_hours', 'parent',
             'dependencies', 'is_blocked',
@@ -107,13 +112,34 @@ class TaskDetailSerializer(serializers.ModelSerializer):
 
 
 class TaskCreateUpdateSerializer(serializers.ModelSerializer):
+    assignees = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.all(),
+        required=False,
+    )
+
     class Meta:
         model = Task
         fields = [
-            'id', 'sprint', 'parent', 'title', 'description', 'assignee', 'reporter',
-            'status', 'priority', 'start_date', 'due_date', 'estimated_hours', 'actual_hours'
+            'id', 'sprint', 'parent', 'title', 'description', 'assignee', 'assignees',
+            'reporter', 'status', 'priority', 'start_date', 'due_date',
+            'estimated_hours', 'actual_hours',
         ]
         read_only_fields = ['id']
+
+    def create(self, validated_data):
+        assignees = validated_data.pop('assignees', [])
+        task = super().create(validated_data)
+        if assignees:
+            task.assignees.set(assignees)
+        return task
+
+    def update(self, instance, validated_data):
+        assignees = validated_data.pop('assignees', None)
+        task = super().update(instance, validated_data)
+        if assignees is not None:
+            task.assignees.set(assignees)
+        return task
 
 
 class TimeLogSerializer(serializers.ModelSerializer):

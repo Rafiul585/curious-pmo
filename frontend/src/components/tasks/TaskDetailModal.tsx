@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Avatar,
+  AvatarGroup,
   Box,
   Button,
   Chip,
@@ -12,6 +13,8 @@ import {
   Divider,
   Grid,
   IconButton,
+  InputLabel,
+  FormControl,
   LinearProgress,
   Link,
   List,
@@ -22,11 +25,14 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  OutlinedInput,
   Paper,
+  Select,
   Stack,
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
   alpha,
 } from '@mui/material';
@@ -105,6 +111,7 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
     priority: '',
     due_date: '',
     assignee: '' as string | number,
+    assignees: [] as number[],
     reporter: '' as string | number,
   });
 
@@ -146,6 +153,7 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
         priority: task.priority,
         due_date: task.due_date || '',
         assignee: task.assignee || '',
+        assignees: task.assignees || [],
         reporter: task.reporter || '',
       });
     }
@@ -163,6 +171,7 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
           priority: editForm.priority,
           due_date: editForm.due_date || undefined,
           assignee: editForm.assignee ? Number(editForm.assignee) : undefined,
+          assignees: editForm.assignees,
           reporter: editForm.reporter ? Number(editForm.reporter) : undefined,
         },
       }).unwrap();
@@ -788,29 +797,52 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                 {/* Sidebar */}
                 <Grid item xs={12} md={4}>
                   <Stack spacing={2}>
-                    {/* Assignee */}
+                    {/* Assignees */}
                     <Box>
                       <Typography variant="caption" color="text.secondary">
-                        Assignee
+                        Assignees
                       </Typography>
                       {editMode ? (
-                        <TextField
-                          select
-                          value={editForm.assignee}
-                          onChange={(e) => setEditForm((f) => ({ ...f, assignee: e.target.value }))}
-                          size="small"
-                          fullWidth
-                          sx={{ mt: 0.5 }}
-                        >
-                          <MenuItem value="">Unassigned</MenuItem>
-                          {projectMembers.map((member) => (
-                            <MenuItem key={member.user.id} value={member.user.id}>
-                              {member.user.first_name && member.user.last_name
-                                ? `${member.user.first_name} ${member.user.last_name}`
-                                : member.user.username}
-                            </MenuItem>
+                        <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
+                          <InputLabel>Assignees</InputLabel>
+                          <Select
+                            multiple
+                            value={editForm.assignees}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                assignees: e.target.value as number[],
+                              }))
+                            }
+                            input={<OutlinedInput label="Assignees" />}
+                            renderValue={(selected) =>
+                              (selected as number[])
+                                .map((id) => projectMembers.find((m) => m.user.id === id)?.user.username ?? id)
+                                .join(', ')
+                            }
+                          >
+                            {projectMembers.map((member) => (
+                              <MenuItem key={member.user.id} value={member.user.id}>
+                                <Avatar sx={{ width: 22, height: 22, mr: 1, fontSize: '0.65rem', bgcolor: 'primary.main' }}>
+                                  {member.user.username[0].toUpperCase()}
+                                </Avatar>
+                                {member.user.first_name && member.user.last_name
+                                  ? `${member.user.first_name} ${member.user.last_name}`
+                                  : member.user.username}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      ) : task.assignees_details && task.assignees_details.length > 0 ? (
+                        <AvatarGroup max={4} sx={{ mt: 0.5, justifyContent: 'flex-start', '& .MuiAvatar-root': { width: 28, height: 28, fontSize: '0.7rem' } }}>
+                          {task.assignees_details.map((u) => (
+                            <Tooltip key={u.id} title={u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}>
+                              <Avatar sx={{ bgcolor: 'primary.main' }}>
+                                {u.username[0].toUpperCase()}
+                              </Avatar>
+                            </Tooltip>
                           ))}
-                        </TextField>
+                        </AvatarGroup>
                       ) : task.assignee_details ? (
                         <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.5 }}>
                           <Avatar sx={{ width: 28, height: 28, bgcolor: 'primary.main' }}>

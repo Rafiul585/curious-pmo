@@ -13,6 +13,10 @@ export interface KanbanTask {
     id: number;
     username: string;
   } | null;
+  assignees?: {
+    id: number;
+    username: string;
+  }[];
   reporter: {
     id: number;
     username: string;

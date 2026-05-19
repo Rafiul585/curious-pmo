@@ -26,6 +26,8 @@ export interface Task {
   sprint_name?: string;
   assignee?: number;
   assignee_details?: TaskUser;
+  assignees?: number[];
+  assignees_details?: TaskUser[];
   reporter?: number;
   reporter_details?: TaskUser;
   due_date?: string;
@@ -93,6 +95,7 @@ export interface CreateTaskData {
   sprint?: number;
   parent?: number | null;
   assignee?: number;
+  assignees?: number[];
   reporter?: number;
   due_date?: string;
   start_date?: string;

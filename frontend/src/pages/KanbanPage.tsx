@@ -108,25 +108,37 @@ const TaskCard = ({ task, onDragEnterTask }: TaskCardProps) => {
         </Stack>
 
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          {task.assignee ? (
-            <Tooltip title={task.assignee.username}>
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <Avatar sx={{ width: 20, height: 20, fontSize: '0.7rem' }}>
-                  {task.assignee?.username?.[0]?.toUpperCase() || '?'}
-                </Avatar>
-                <Typography variant="caption" color="text.secondary">
-                  {task.assignee.username}
-                </Typography>
-              </Stack>
-            </Tooltip>
-          ) : (
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <PersonIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
-              <Typography variant="caption" color="text.disabled">
-                Unassigned
-              </Typography>
-            </Stack>
-          )}
+          {(() => {
+            const all = task.assignees && task.assignees.length > 0
+              ? task.assignees
+              : task.assignee ? [task.assignee] : [];
+            if (all.length === 0) {
+              return (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <PersonIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                  <Typography variant="caption" color="text.disabled">Unassigned</Typography>
+                </Stack>
+              );
+            }
+            const visible = all.slice(0, 3);
+            const overflow = all.length - visible.length;
+            return (
+              <Tooltip title={all.map((u) => u.username).join(', ')}>
+                <Stack direction="row" spacing={-0.5} alignItems="center">
+                  {visible.map((u) => (
+                    <Avatar key={u.id} sx={{ width: 20, height: 20, fontSize: '0.6rem', border: '1px solid white' }}>
+                      {u.username[0].toUpperCase()}
+                    </Avatar>
+                  ))}
+                  {overflow > 0 && (
+                    <Avatar sx={{ width: 20, height: 20, fontSize: '0.6rem', bgcolor: 'grey.400', border: '1px solid white' }}>
+                      +{overflow}
+                    </Avatar>
+                  )}
+                </Stack>
+              </Tooltip>
+            );
+          })()}
 
           {task.due_date && (
             <Tooltip title={`Due: ${task.due_date}`}>

@@ -647,6 +647,25 @@ export const ProjectDetailPage = () => {
                           >
                             {task.title}
                           </Typography>
+                          {/* Assignee avatars */}
+                          {(() => {
+                            const all = task.assignees_details && task.assignees_details.length > 0
+                              ? task.assignees_details
+                              : task.assignee_details ? [task.assignee_details] : [];
+                            if (all.length === 0) return null;
+                            const visible = all.slice(0, 3);
+                            const overflow = all.length - visible.length;
+                            return (
+                              <AvatarGroup sx={{ '& .MuiAvatar-root': { width: 22, height: 22, fontSize: '0.6rem' } }}>
+                                {visible.map((u) => (
+                                  <Avatar key={u.id} sx={{ bgcolor: 'primary.main' }}>{u.username[0].toUpperCase()}</Avatar>
+                                ))}
+                                {overflow > 0 && (
+                                  <Avatar sx={{ bgcolor: 'grey.400' }}>+{overflow}</Avatar>
+                                )}
+                              </AvatarGroup>
+                            );
+                          })()}
                           <Stack direction="row" spacing={0.5} flexShrink={0}>
                             <Chip
                               label={task.status}
