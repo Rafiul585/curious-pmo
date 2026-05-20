@@ -165,6 +165,7 @@ def get_kanban_for_user(user, project_id=None):
             'id': col['id'],
             'name': col['name'],
             'status': col['status'],
+            'color': col['color'],
             'tasks': [_serialize_task(t) for t in column_tasks],
             'count': column_tasks.count(),
         })
