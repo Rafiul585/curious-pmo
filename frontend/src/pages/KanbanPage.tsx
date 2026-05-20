@@ -17,6 +17,11 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   TextField,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -29,6 +34,7 @@ import {
   KanbanColumn,
 } from '../api/kanbanApi';
 import { useChangeTaskStatusMutation, useCreateTaskMutation, useReorderTasksMutation } from '../api/taskApi';
+import { useListSprintsQuery } from '../api/sprintApi';
 import { useSnackbar } from 'notistack';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -164,17 +170,13 @@ interface KanbanColumnProps {
   onDragEnter: () => void;
   onDragLeave: () => void;
   onTaskDragEnter: (taskId: number) => void;
-  isAddingTask: boolean;
-  addingTitle: string;
+  showAddTask: boolean;
   onAddTaskClick: () => void;
-  onAddTaskTitleChange: (value: string) => void;
-  onAddTaskSave: () => void;
-  onAddTaskCancel: () => void;
 }
 
 const KanbanColumnComponent = ({
   column, tasks, onDrop, isDragOver, onDragEnter, onDragLeave, onTaskDragEnter,
-  isAddingTask, addingTitle, onAddTaskClick, onAddTaskTitleChange, onAddTaskSave, onAddTaskCancel,
+  showAddTask, onAddTaskClick,
 }: KanbanColumnProps) => {
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -253,24 +255,7 @@ const KanbanColumnComponent = ({
           ))
         )}
 
-        {/* Inline add-task row */}
-        {isAddingTask ? (
-          <Box sx={{ mt: 0.5 }}>
-            <TextField
-              autoFocus
-              size="small"
-              fullWidth
-              placeholder="Task title…"
-              value={addingTitle}
-              onChange={(e) => onAddTaskTitleChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); onAddTaskSave(); }
-                if (e.key === 'Escape') onAddTaskCancel();
-              }}
-              onBlur={onAddTaskCancel}
-            />
-          </Box>
-        ) : (
+        {showAddTask && (
           <Box
             sx={{
               mt: 0.5,
@@ -301,8 +286,11 @@ export const KanbanPage = () => {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<number | null>(null);
   const [optimisticColumns, setOptimisticColumns] = useState<Record<string, KanbanTask[]>>({});
-  const [activeColumnInput, setActiveColumnInput] = useState<string | null>(null);
-  const [inlineTitle, setInlineTitle] = useState('');
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addDialogStatus, setAddDialogStatus] = useState('');
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskSprintId, setNewTaskSprintId] = useState<number | ''>('');
+  const [dialogProjectId, setDialogProjectId] = useState<number | ''>('');
   const { enqueueSnackbar } = useSnackbar();
 
   const { data: projects } = useListProjectsQuery();
@@ -316,16 +304,19 @@ export const KanbanPage = () => {
   );
 
   const [changeStatus] = useChangeTaskStatusMutation();
-  const [createTask] = useCreateTaskMutation();
+  const [createTask, { isLoading: creatingTask }] = useCreateTaskMutation();
   const [reorderTasks] = useReorderTasksMutation();
 
   const kanbanData = viewMode === 'my' ? myKanban : projectKanban;
   const isLoading = viewMode === 'my' ? loadingMyKanban : loadingProjectKanban;
 
-  // Use a sprint from the current kanban tasks (project view only — keeps new tasks in project scope)
-  const firstSprintId = viewMode === 'project'
-    ? kanbanData?.columns.flatMap((c) => c.tasks).find((t) => t.sprint)?.sprint.id
-    : undefined;
+  // Sprints for the add-task dialog: use the board's project in project mode,
+  // or the dialog-level project picker in my-tasks mode.
+  const sprintProjectId = viewMode === 'project' ? selectedProject : dialogProjectId;
+  const { data: dialogSprints } = useListSprintsQuery(
+    { project: sprintProjectId } as any,
+    { skip: !sprintProjectId }
+  );
 
   // Clear optimistic overrides whenever server data refreshes
   useEffect(() => {
@@ -375,18 +366,38 @@ export const KanbanPage = () => {
     setDragOverTaskId(null);
   };
 
-  const handleAddTaskSave = async (columnStatus: string) => {
-    const title = inlineTitle.trim();
-    setActiveColumnInput(null);
-    setInlineTitle('');
-    if (!title) return;
+  const handleAddTaskOpen = (columnStatus: string) => {
+    setAddDialogStatus(columnStatus);
+    setNewTaskTitle('');
+    setNewTaskSprintId('');
+    if (viewMode === 'project') {
+      setDialogProjectId(selectedProject);
+      const activeSprint = dialogSprints?.find((s: any) => s.status === 'active') ?? dialogSprints?.[0];
+      setNewTaskSprintId(activeSprint?.id ?? '');
+    } else {
+      setDialogProjectId('');
+    }
+    setAddDialogOpen(true);
+  };
+
+  const handleDialogProjectChange = (projectId: number | '') => {
+    setDialogProjectId(projectId);
+    setNewTaskSprintId('');
+  };
+
+  const handleAddTaskSave = async () => {
+    const title = newTaskTitle.trim();
+    if (!title || !newTaskSprintId) return;
     try {
       await createTask({
         title,
-        status: columnStatus,
+        status: addDialogStatus,
         priority: 'Medium',
-        ...(firstSprintId !== undefined ? { sprint: firstSprintId } : {}),
-      }).unwrap();
+        sprint: newTaskSprintId,
+      } as any).unwrap();
+      enqueueSnackbar('Task created', { variant: 'success' });
+      setAddDialogOpen(false);
+      setNewTaskTitle('');
     } catch {
       enqueueSnackbar('Failed to create task', { variant: 'error' });
     }
@@ -456,17 +467,68 @@ export const KanbanPage = () => {
                   onDragEnter={() => setDragOverColumn(column.id)}
                   onDragLeave={() => setDragOverColumn(null)}
                   onTaskDragEnter={(taskId) => setDragOverTaskId(taskId)}
-                  isAddingTask={activeColumnInput === column.id}
-                  addingTitle={inlineTitle}
-                  onAddTaskClick={() => { setInlineTitle(''); setActiveColumnInput(column.id); }}
-                  onAddTaskTitleChange={setInlineTitle}
-                  onAddTaskSave={() => handleAddTaskSave(column.status)}
-                  onAddTaskCancel={() => { setActiveColumnInput(null); setInlineTitle(''); }}
+                  showAddTask={true}
+                  onAddTaskClick={() => handleAddTaskOpen(column.status)}
                 />
               ))}
             </Stack>
           </Box>
         )}
+
+      {/* Add Task Dialog */}
+      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Add Task</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              autoFocus
+              label="Task Title"
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTaskSave(); } }}
+              fullWidth
+              required
+            />
+            {viewMode === 'my' && (
+              <TextField
+                label="Project"
+                value={dialogProjectId}
+                onChange={(e) => handleDialogProjectChange(Number(e.target.value))}
+                select
+                fullWidth
+                required
+              >
+                {(projects ?? []).map((p) => (
+                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                ))}
+              </TextField>
+            )}
+            <TextField
+              label="Sprint"
+              value={newTaskSprintId}
+              onChange={(e) => setNewTaskSprintId(Number(e.target.value))}
+              select
+              fullWidth
+              required
+              disabled={!dialogSprints?.length}
+            >
+              {(dialogSprints ?? []).map((s: any) => (
+                <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleAddTaskSave}
+            disabled={!newTaskTitle.trim() || !newTaskSprintId || creatingTask}
+          >
+            {creatingTask ? 'Creating…' : 'Create Task'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

@@ -1875,57 +1875,6 @@ export const ProjectDetailPage = () => {
               </Button>
             </Stack>
 
-            {showNewDocForm && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <TextField
-                    autoFocus
-                    size="small"
-                    placeholder="Document title"
-                    value={newDocTitle}
-                    onChange={(e) => setNewDocTitle(e.target.value)}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Escape') { setShowNewDocForm(false); setNewDocTitle(''); }
-                      if (e.key === 'Enter' && newDocTitle.trim()) {
-                        e.preventDefault();
-                        try {
-                          const doc = await createDoc({ project: projectId, title: newDocTitle.trim(), content: '' }).unwrap();
-                          setShowNewDocForm(false);
-                          setNewDocTitle('');
-                          enqueueSnackbar('Doc created', { variant: 'success' });
-                          navigate(`/projects/${projectId}/docs/${doc.id}`);
-                        } catch {
-                          enqueueSnackbar('Failed to create doc', { variant: 'error' });
-                        }
-                      }
-                    }}
-                    sx={{ flex: 1 }}
-                  />
-                  <Button
-                    variant="contained"
-                    size="small"
-                    disabled={!newDocTitle.trim()}
-                    onClick={async () => {
-                      try {
-                        const doc = await createDoc({ project: projectId, title: newDocTitle.trim(), content: '' }).unwrap();
-                        setShowNewDocForm(false);
-                        setNewDocTitle('');
-                        enqueueSnackbar('Doc created', { variant: 'success' });
-                        navigate(`/projects/${projectId}/docs/${doc.id}`);
-                      } catch {
-                        enqueueSnackbar('Failed to create doc', { variant: 'error' });
-                      }
-                    }}
-                  >
-                    Create
-                  </Button>
-                  <Button size="small" onClick={() => { setShowNewDocForm(false); setNewDocTitle(''); }}>
-                    Cancel
-                  </Button>
-                </Stack>
-              </Paper>
-            )}
-
             {docs && docs.length > 0 ? (
               <Stack spacing={1}>
                 {docs.map((doc) => (
@@ -1991,6 +1940,63 @@ export const ProjectDetailPage = () => {
           </Box>
         </TabPanel>
       </Paper>
+
+      {/* New Doc Dialog */}
+      <Dialog
+        open={showNewDocForm}
+        onClose={() => { setShowNewDocForm(false); setNewDocTitle(''); }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>New Document</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              autoFocus
+              label="Title"
+              placeholder="e.g., Architecture Overview"
+              value={newDocTitle}
+              onChange={(e) => setNewDocTitle(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' && newDocTitle.trim()) {
+                  e.preventDefault();
+                  try {
+                    const doc = await createDoc({ project: projectId, title: newDocTitle.trim(), content: '' }).unwrap();
+                    setShowNewDocForm(false);
+                    setNewDocTitle('');
+                    enqueueSnackbar('Doc created', { variant: 'success' });
+                    navigate(`/projects/${projectId}/docs/${doc.id}`);
+                  } catch {
+                    enqueueSnackbar('Failed to create doc', { variant: 'error' });
+                  }
+                }
+              }}
+              fullWidth
+              required
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setShowNewDocForm(false); setNewDocTitle(''); }}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!newDocTitle.trim()}
+            onClick={async () => {
+              try {
+                const doc = await createDoc({ project: projectId, title: newDocTitle.trim(), content: '' }).unwrap();
+                setShowNewDocForm(false);
+                setNewDocTitle('');
+                enqueueSnackbar('Doc created', { variant: 'success' });
+                navigate(`/projects/${projectId}/docs/${doc.id}`);
+              } catch {
+                enqueueSnackbar('Failed to create doc', { variant: 'error' });
+              }
+            }}
+          >
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} fullWidth maxWidth="sm">

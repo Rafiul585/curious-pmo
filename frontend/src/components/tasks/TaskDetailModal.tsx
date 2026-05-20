@@ -63,6 +63,7 @@ import {
   Repeat,
   GitHub as GitHubIcon,
   OpenInNew,
+  Schedule,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -122,6 +123,8 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const { enqueueSnackbar } = useSnackbar();
   const [tabValue, setTabValue] = useState(0);
   const [editMode, setEditMode] = useState(false);
+  const [editingEstimated, setEditingEstimated] = useState(false);
+  const [estimatedInput, setEstimatedInput] = useState('');
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [newComment, setNewComment] = useState('');
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -135,6 +138,7 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
     status: '',
     priority: '',
     due_date: '',
+    estimated_hours: '',
     assignee: '' as string | number,
     assignees: [] as number[],
     reporter: '' as string | number,
@@ -245,6 +249,7 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
         status: task.status,
         priority: task.priority,
         due_date: task.due_date || '',
+        estimated_hours: task.estimated_hours != null ? String(task.estimated_hours) : '',
         assignee: task.assignee || '',
         assignees: task.assignees || [],
         reporter: task.reporter || '',
@@ -265,6 +270,7 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
           status: editForm.status,
           priority: editForm.priority,
           due_date: editForm.due_date || undefined,
+          estimated_hours: editForm.estimated_hours !== '' ? parseFloat(editForm.estimated_hours) : null,
           assignee: editForm.assignee ? Number(editForm.assignee) : undefined,
           assignees: editForm.assignees,
           reporter: editForm.reporter ? Number(editForm.reporter) : undefined,
@@ -276,6 +282,18 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
       setEditMode(false);
     } catch {
       enqueueSnackbar('Failed to update task', { variant: 'error' });
+    }
+  };
+
+  const handleEstimatedSave = async () => {
+    setEditingEstimated(false);
+    const value = estimatedInput.trim();
+    const parsed = value !== '' ? parseFloat(value) : null;
+    if (parsed === (task?.estimated_hours ?? null)) return;
+    try {
+      await updateTask({ id: taskId!, data: { estimated_hours: parsed } as any }).unwrap();
+    } catch {
+      enqueueSnackbar('Failed to update estimated hours', { variant: 'error' });
     }
   };
 
@@ -1283,6 +1301,61 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                         </Stack>
                       )}
                     </Box>
+
+                    <Divider />
+
+                    {/* Estimated Hours */}
+                    <Box>
+                      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 0.5 }}>
+                        <Schedule fontSize="small" color="action" sx={{ fontSize: '0.85rem' }} />
+                        <Typography variant="caption" color="text.secondary">Estimated Hours</Typography>
+                      </Stack>
+                      {editingEstimated ? (
+                        <TextField
+                          autoFocus
+                          type="number"
+                          size="small"
+                          fullWidth
+                          value={estimatedInput}
+                          onChange={(e) => setEstimatedInput(e.target.value)}
+                          onBlur={handleEstimatedSave}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); handleEstimatedSave(); }
+                            if (e.key === 'Escape') setEditingEstimated(false);
+                          }}
+                          inputProps={{ min: 0, step: 0.5 }}
+                          placeholder="e.g. 4"
+                          sx={{ mt: 0.5 }}
+                        />
+                      ) : (
+                        <Stack
+                          direction="row"
+                          alignItems="center"
+                          spacing={1}
+                          sx={{
+                            mt: 0.5,
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                            px: 0.5,
+                            py: 0.25,
+                            '&:hover': { bgcolor: 'action.hover' },
+                          }}
+                          onClick={() => {
+                            setEstimatedInput(task.estimated_hours != null ? String(task.estimated_hours) : '');
+                            setEditingEstimated(true);
+                          }}
+                        >
+                          <Schedule fontSize="small" color="action" />
+                          <Typography variant="body2" color={task.estimated_hours != null ? 'text.primary' : 'text.secondary'}>
+                            {task.estimated_hours != null
+                              ? `${Number(task.estimated_hours).toFixed(1)}h`
+                              : 'Click to set'}
+                          </Typography>
+                        </Stack>
+                      )}
+                    </Box>
+
+                    <Divider />
 
                     {/* Recurrence */}
                     <Box>
