@@ -3,7 +3,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Prefetch, Count, Q
+from django.shortcuts import get_object_or_404
 from datetime import date, timedelta
+from collections import defaultdict
 
 from pm.models.workspace_models import Workspace, WorkspaceMember
 from pm.models.project_models import Project, Milestone, Sprint
@@ -11,7 +13,7 @@ from pm.models.task_models import Task, TimeLog
 from django.db.models import Sum
 from pm.models.activity_models import ActivityLog
 from pm.models.user_models import User
-from pm.utils.permission_helpers import get_accessible_projects
+from pm.utils.permission_helpers import get_accessible_projects, can_user_view_project
 
 
 def is_admin_or_superuser(user):
@@ -1593,5 +1595,231 @@ class DashboardViewSet(viewsets.ViewSet):
                 'id', 'title', 'status', 'priority', 'due_date',
                 'assignee__username', 'sprint__name'
             ))
+        })
+
+    # =========================================================
+    #  ANALYTICS ENDPOINTS
+    # =========================================================
+
+    @action(detail=False, methods=['GET'])
+    def velocity(self, request):
+        """
+        GET /api/dashboard/velocity/?project=<id>&last_n_sprints=6
+        Returns per-sprint planned/completed task counts and rates for velocity tracking.
+        """
+        project_id = request.query_params.get('project')
+        if not project_id:
+            return Response({'detail': 'project query parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        last_n = int(request.query_params.get('last_n_sprints', 6))
+
+        project = get_object_or_404(Project, id=project_id)
+        if not can_user_view_project(request.user, project):
+            return Response({'detail': 'You do not have permission to view this project.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get last N sprints ordered by end_date desc, then reverse to chronological
+        sprints_qs = (
+            Sprint.objects
+            .filter(milestone__project=project)
+            .order_by('-end_date')[:last_n]
+        )
+        sprints = list(reversed(list(sprints_qs)))
+
+        sprint_data = []
+        total_completed = 0
+        total_rate = 0.0
+
+        for sprint in sprints:
+            tasks_qs = Task.objects.filter(sprint=sprint)
+            planned = tasks_qs.count()
+            completed = tasks_qs.filter(status='Done').count()
+            rate = round((completed / planned * 100), 1) if planned > 0 else 0.0
+            total_completed += completed
+            total_rate += rate
+            sprint_data.append({
+                'sprint_id': sprint.id,
+                'sprint_name': sprint.name,
+                'start_date': sprint.start_date,
+                'end_date': sprint.end_date,
+                'planned_tasks': planned,
+                'completed_tasks': completed,
+                'completion_rate': rate,
+            })
+
+        n = len(sprint_data)
+        avg_completed = round(total_completed / n, 1) if n > 0 else 0.0
+        avg_rate = round(total_rate / n, 1) if n > 0 else 0.0
+
+        return Response({
+            'sprints': sprint_data,
+            'avg_completed_tasks': avg_completed,
+            'avg_completion_rate': avg_rate,
+        })
+
+    @action(detail=False, methods=['GET'])
+    def cumulative_flow(self, request):
+        """
+        GET /api/dashboard/cumulative_flow/?project=<id>&days=60
+        Returns a daily cumulative series of total created tasks and Done tasks.
+        """
+        project_id = request.query_params.get('project')
+        if not project_id:
+            return Response({'detail': 'project query parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        days = int(request.query_params.get('days', 60))
+
+        project = get_object_or_404(Project, id=project_id)
+        if not can_user_view_project(request.user, project):
+            return Response({'detail': 'You do not have permission to view this project.'}, status=status.HTTP_403_FORBIDDEN)
+
+        today = date.today()
+        start_date = today - timedelta(days=days)
+
+        # Single DB call: fetch created_at date, status, and updated_at date per task
+        task_values = Task.objects.filter(
+            sprint__milestone__project=project
+        ).values('created_at__date', 'status', 'updated_at__date')
+
+        # Accumulate events by date
+        created_by_day = defaultdict(int)   # date -> count of tasks created on that day
+        done_by_day = defaultdict(int)      # date -> count of tasks marked done on that day
+
+        for row in task_values:
+            created_day = row['created_at__date']
+            if created_day is not None:
+                created_by_day[created_day] += 1
+            if row['status'] == 'Done':
+                done_day = row['updated_at__date']
+                if done_day is not None:
+                    done_by_day[done_day] += 1
+
+        # Build ordered daily date list
+        dates = []
+        current = start_date
+        while current <= today:
+            dates.append(current)
+            current += timedelta(days=1)
+
+        # Compute cumulative totals
+        cumulative_created = []
+        cumulative_done = []
+        running_created = 0
+        running_done = 0
+
+        for d in dates:
+            running_created += created_by_day.get(d, 0)
+            running_done += done_by_day.get(d, 0)
+            cumulative_created.append(running_created)
+            cumulative_done.append(running_done)
+
+        date_strings = [d.strftime('%Y-%m-%d') for d in dates]
+
+        return Response({
+            'dates': date_strings,
+            'series': [
+                {'label': 'Total Created', 'data': cumulative_created},
+                {'label': 'Done', 'data': cumulative_done},
+            ],
+        })
+
+    @action(detail=False, methods=['GET'])
+    def cycle_time(self, request):
+        """
+        GET /api/dashboard/cycle_time/?project=<id>
+        Returns average cycle time (created → done) and a histogram for done tasks.
+        """
+        project_id = request.query_params.get('project')
+        if not project_id:
+            return Response({'detail': 'project query parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        project = get_object_or_404(Project, id=project_id)
+        if not can_user_view_project(request.user, project):
+            return Response({'detail': 'You do not have permission to view this project.'}, status=status.HTTP_403_FORBIDDEN)
+
+        empty_histogram = [
+            {'label': '0-2 days', 'count': 0},
+            {'label': '3-7 days', 'count': 0},
+            {'label': '8-14 days', 'count': 0},
+            {'label': '15-30 days', 'count': 0},
+            {'label': '30+ days', 'count': 0},
+        ]
+
+        done_tasks = list(
+            Task.objects.filter(sprint__milestone__project=project, status='Done')
+            .values('id', 'created_at')[:200]
+        )
+
+        if not done_tasks:
+            return Response({
+                'avg_cycle_time_days': 0,
+                'total_done_tasks': 0,
+                'histogram': empty_histogram,
+            })
+
+        done_task_ids = [t['id'] for t in done_tasks]
+        task_created_map = {t['id']: t['created_at'] for t in done_tasks}
+
+        # Fetch the most recent TASK_STATUS_CHANGED log where new status became 'Done'
+        # ActivityLog stores new_value as a JSON field; filter tasks and action
+        done_logs = (
+            ActivityLog.objects
+            .filter(
+                content_type='Task',
+                action='TASK_STATUS_CHANGED',
+                object_id__in=[str(tid) for tid in done_task_ids],
+            )
+            .filter(new_value__status='Done')
+            .order_by('object_id', 'timestamp')
+            .values('object_id', 'timestamp')
+        )
+
+        # Build a map: task_id -> earliest done timestamp (first time it became Done)
+        done_timestamp_map = {}
+        for log in done_logs:
+            tid = int(log['object_id'])
+            if tid not in done_timestamp_map:
+                done_timestamp_map[tid] = log['timestamp']
+
+        # Compute cycle times
+        cycle_times = []
+        for tid, created_at in task_created_map.items():
+            done_ts = done_timestamp_map.get(tid)
+            if done_ts is not None:
+                ct_days = (done_ts.date() - created_at.date()).days
+                if ct_days >= 0:
+                    cycle_times.append(ct_days)
+
+        histogram = [
+            {'label': '0-2 days', 'count': 0},
+            {'label': '3-7 days', 'count': 0},
+            {'label': '8-14 days', 'count': 0},
+            {'label': '15-30 days', 'count': 0},
+            {'label': '30+ days', 'count': 0},
+        ]
+
+        bucket_map = [
+            ('0-2 days', 0, 2),
+            ('3-7 days', 3, 7),
+            ('8-14 days', 8, 14),
+            ('15-30 days', 15, 30),
+            ('30+ days', 31, None),
+        ]
+
+        for ct in cycle_times:
+            for entry, (label, low, high) in zip(histogram, bucket_map):
+                if high is None:
+                    if ct >= low:
+                        entry['count'] += 1
+                        break
+                elif low <= ct <= high:
+                    entry['count'] += 1
+                    break
+
+        avg_cycle = round(sum(cycle_times) / len(cycle_times), 1) if cycle_times else 0
+
+        return Response({
+            'avg_cycle_time_days': avg_cycle,
+            'total_done_tasks': len(done_tasks),
+            'histogram': histogram,
         })
 

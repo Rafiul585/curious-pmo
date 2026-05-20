@@ -900,7 +900,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] DOC1 — Business Requirements Document (BRD)
+## [x] DOC1 — Business Requirements Document (BRD)
 
 **File to create:** `docs/BRD.md`
 
@@ -946,7 +946,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] DOC2 — Software Requirements Specification (SRS)
+## [x] DOC2 — Software Requirements Specification (SRS)
 
 **File to create:** `docs/SRS.md`
 
@@ -997,7 +997,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] DOC3 — Work Order Template
+## [x] DOC3 — Work Order Template
 
 **File to create:** `docs/WORK_ORDER_TEMPLATE.md`
 
@@ -1056,7 +1056,7 @@ Total: X hours
 
 ---
 
-## [ ] DOC4 — API Reference Documentation
+## [x] DOC4 — API Reference Documentation
 
 **File to create:** `docs/API_REFERENCE.md`
 
