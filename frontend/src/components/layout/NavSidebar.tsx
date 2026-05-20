@@ -67,7 +67,8 @@ const navItems: NavItemOrDivider[] = [
   { label: 'Search', to: '/search', icon: <SearchIcon /> },
   { divider: true },
   { label: 'My Profile', to: '/profile', icon: <PersonIcon /> },
-  { label: 'Help', to: '/help', icon: <HelpIcon /> },
+  { divider: true, label: 'SUPPORT' },
+  { label: 'Help & Guide', to: '/help', icon: <HelpIcon /> },
 ];
 
 const DRAWER_WIDTH = 240;
@@ -105,6 +106,9 @@ export const NavSidebar = ({ mobileOpen, onClose }: NavSidebarProps) => {
           boxSizing: 'border-box',
           borderRight: 1,
           borderColor: 'divider',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
         },
       }}
     >
