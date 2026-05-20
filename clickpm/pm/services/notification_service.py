@@ -97,27 +97,37 @@ CuriousPMO Team
     @staticmethod
     def notify_task_assignment(task, old_assignee=None):
         """
-        Notify user when they are assigned to a task.
+        Notify all assignees when they are assigned to a task.
+        Uses assignees M2M; also notifies legacy assignee FK if set.
         """
-        if not task.assignee:
-            return None
-
+        actor = task.reporter or None
         verb = f'assigned you to task "{task.title}"'
-        actor = task.reporter or None  # Reporter is usually the one assigning
+        notifications = []
 
-        notification = NotificationService.create_notification(
-            recipient=task.assignee,
-            verb=verb,
-            notification_type='assignment',
-            actor=actor,
-            target=task,
-            send_email=True
-        )
+        notified_ids = set()
+        if old_assignee:
+            notified_ids.add(old_assignee.id)
 
-        # Also send the specific assignment email
-        EmailService.send_task_assignment_email(task.assignee, task)
+        recipients = list(task.assignees.all())
+        if task.assignee and task.assignee.id not in {r.id for r in recipients}:
+            recipients.append(task.assignee)
 
-        return notification
+        for recipient in recipients:
+            if recipient.id in notified_ids:
+                continue
+            notified_ids.add(recipient.id)
+            n = NotificationService.create_notification(
+                recipient=recipient,
+                verb=verb,
+                notification_type='assignment',
+                actor=actor,
+                target=task,
+                send_email=True,
+            )
+            EmailService.send_task_assignment_email(recipient, task)
+            notifications.append(n)
+
+        return notifications or None
 
     @staticmethod
     def notify_task_status_change(task, old_status, actor=None):
@@ -125,32 +135,55 @@ CuriousPMO Team
         Notify relevant users when task status changes.
         """
         notifications = []
+        notified_ids = {actor.id} if actor else set()
+        verb = f'changed status of task "{task.title}" from {old_status} to {task.status}'
 
-        # Notify assignee if they didn't make the change
-        if task.assignee and task.assignee != actor:
-            verb = f'changed status of task "{task.title}" from {old_status} to {task.status}'
-            notification = NotificationService.create_notification(
-                recipient=task.assignee,
+        # Notify all assignees
+        recipients = list(task.assignees.all())
+        if task.assignee and task.assignee.id not in {r.id for r in recipients}:
+            recipients.append(task.assignee)
+
+        for recipient in recipients:
+            if recipient.id in notified_ids:
+                continue
+            notified_ids.add(recipient.id)
+            n = NotificationService.create_notification(
+                recipient=recipient,
                 verb=verb,
                 notification_type='status_change',
                 actor=actor,
                 target=task,
-                send_email=True
+                send_email=True,
             )
-            notifications.append(notification)
+            notifications.append(n)
 
-        # Notify reporter if they didn't make the change
-        if task.reporter and task.reporter != actor and task.reporter != task.assignee:
-            verb = f'changed status of task "{task.title}" from {old_status} to {task.status}'
-            notification = NotificationService.create_notification(
+        # Notify reporter if not already notified
+        if task.reporter and task.reporter.id not in notified_ids:
+            n = NotificationService.create_notification(
                 recipient=task.reporter,
                 verb=verb,
                 notification_type='status_change',
                 actor=actor,
                 target=task,
-                send_email=True
+                send_email=True,
             )
-            notifications.append(notification)
+            notifications.append(n)
+            notified_ids.add(task.reporter.id)
+
+        # Notify watchers
+        for watcher in task.watchers.all():
+            if watcher.id in notified_ids:
+                continue
+            notified_ids.add(watcher.id)
+            n = NotificationService.create_notification(
+                recipient=watcher,
+                verb=verb,
+                notification_type='status_change',
+                actor=actor,
+                target=task,
+                send_email=False,
+            )
+            notifications.append(n)
 
         return notifications
 
@@ -190,23 +223,28 @@ CuriousPMO Team
 
         if comment.task:
             task = comment.task
-            # Notify assignee
-            if task.assignee and task.assignee.id not in notified_users:
-                verb = f'commented on task "{task.title}"'
-                notification = NotificationService.create_notification(
-                    recipient=task.assignee,
-                    verb=verb,
-                    notification_type='comment',
-                    actor=actor,
-                    target=task,
-                    send_email=True
-                )
-                notifications.append(notification)
-                notified_users.add(task.assignee.id)
+            verb = f'commented on task "{task.title}"'
+
+            # Notify all assignees
+            assignees = list(task.assignees.all())
+            if task.assignee and task.assignee.id not in {r.id for r in assignees}:
+                assignees.append(task.assignee)
+
+            for recipient in assignees:
+                if recipient.id not in notified_users:
+                    n = NotificationService.create_notification(
+                        recipient=recipient,
+                        verb=verb,
+                        notification_type='comment',
+                        actor=actor,
+                        target=task,
+                        send_email=True,
+                    )
+                    notifications.append(n)
+                    notified_users.add(recipient.id)
 
             # Notify reporter
             if task.reporter and task.reporter.id not in notified_users:
-                verb = f'commented on task "{task.title}"'
                 notification = NotificationService.create_notification(
                     recipient=task.reporter,
                     verb=verb,
@@ -217,6 +255,20 @@ CuriousPMO Team
                 )
                 notifications.append(notification)
                 notified_users.add(task.reporter.id)
+
+            # Notify watchers
+            for watcher in task.watchers.all():
+                if watcher.id not in notified_users:
+                    n = NotificationService.create_notification(
+                        recipient=watcher,
+                        verb=verb,
+                        notification_type='comment',
+                        actor=actor,
+                        target=task,
+                        send_email=False,
+                    )
+                    notifications.append(n)
+                    notified_users.add(watcher.id)
 
         return notifications
 
@@ -297,6 +349,59 @@ CuriousPMO Team
                 logger.warning(f"Mentioned user not found: {username}")
                 continue
 
+        return notifications
+
+    @staticmethod
+    def create_health_alert(entity, old_status, new_status):
+        """
+        Notify all project members when a Project, Milestone, or Sprint health degrades.
+        Called only when severity increases (e.g. on_track → at_risk).
+        """
+        LABELS = {
+            'on_track': 'On Track',
+            'at_risk':  'At Risk',
+            'behind':   'Behind',
+            'critical': 'Critical',
+        }
+
+        # Resolve the parent project regardless of entity type
+        entity_type = entity.__class__.__name__
+        if entity_type == 'Project':
+            project = entity
+        elif entity_type == 'Milestone':
+            project = entity.project
+        elif entity_type == 'Sprint':
+            project = entity.milestone.project
+        else:
+            logger.warning(f"create_health_alert: unsupported entity type {entity_type}")
+            return []
+
+        verb = (
+            f'{entity_type} "{entity.name}" health changed: '
+            f'{LABELS.get(old_status, old_status)} → {LABELS.get(new_status, new_status)}'
+        )
+
+        notifications = []
+        notified_ids = set()
+
+        for member in project.members.all():
+            if member.id in notified_ids:
+                continue
+            notified_ids.add(member.id)
+            try:
+                n = NotificationService.create_notification(
+                    recipient=member,
+                    verb=verb,
+                    notification_type='health_degradation',
+                    actor=None,
+                    target=entity,
+                    send_email=False,  # avoid email spam on automated recalculations
+                )
+                notifications.append(n)
+            except Exception as e:
+                logger.error(f"Failed to create health_degradation notification for {member.username}: {e}")
+
+        logger.info(f"Health degradation alert sent for {entity_type} '{entity.name}': {old_status} → {new_status} ({len(notifications)} recipients)")
         return notifications
 
     @staticmethod

@@ -29,7 +29,7 @@ This file is the single source of truth for all planned work. Each step is self-
 
 ---
 
-## [ ] A1 — Health Status Field on Models
+## [x] A1 — Health Status Field on Models
 
 **Goal:** Add `health_status` to Project, Milestone, and Sprint.
 
@@ -56,7 +56,7 @@ cd clickpm && python manage.py makemigrations && python manage.py migrate
 
 ---
 
-## [ ] A2 — Health Calculation Service
+## [x] A2 — Health Calculation Service
 
 **File to create:** `clickpm/pm/services/health_service.py`
 
@@ -86,7 +86,7 @@ def refresh_project_tree_health(project) -> None: ...
 
 ---
 
-## [ ] A3 — Auto-Refresh Health via Signal
+## [x] A3 — Auto-Refresh Health via Signal
 
 **File:** `clickpm/pm/signals.py` (create if needed)
 ```python
@@ -103,7 +103,7 @@ def task_saved(sender, instance, **kwargs):
 
 ---
 
-## [ ] A4 — Expose health_status in Serializers & API
+## [x] A4 — Expose health_status in Serializers & API
 
 **File:** `clickpm/pm/serializers/project_serializers.py`
 - Add `health_status` to `ProjectSerializer`, `MilestoneSerializer`, `SprintSerializer`
@@ -113,7 +113,7 @@ def task_saved(sender, instance, **kwargs):
 
 ---
 
-## [ ] A5 — Health Degradation Notifications
+## [x] A5 — Health Degradation Notifications
 
 **Files:**
 - `clickpm/pm/models/notification_models.py` → add `'health_degradation'` to choices
@@ -131,7 +131,7 @@ Message format: `"Sprint 'Alpha' changed from On Track → At Risk"`
 
 ---
 
-## [ ] A6 — Frontend: HealthBadge Component
+## [x] A6 — Frontend: HealthBadge Component
 
 **File to create:** `frontend/src/components/feedback/HealthBadge.tsx`
 ```tsx
@@ -147,7 +147,7 @@ Message format: `"Sprint 'Alpha' changed from On Track → At Risk"`
 
 ---
 
-## [ ] A7 — Frontend: Health Status Filter
+## [x] A7 — Frontend: Health Status Filter
 
 **Files:**
 - `frontend/src/pages/DashboardPage.tsx` — chip row: `All | On Track | At Risk | Behind | Critical`
@@ -159,7 +159,7 @@ Client-side filter on already-fetched data.
 
 ---
 
-## [ ] A8 — Sprint Burndown Chart
+## [x] A8 — Sprint Burndown Chart
 
 **Backend — new endpoint:** `GET /api/sprints/{id}/burndown/`
 ```json
@@ -178,7 +178,7 @@ Client-side filter on already-fetched data.
 
 ---
 
-## [ ] A9 — Blocked Task Indicator
+## [x] A9 — Blocked Task Indicator
 
 **Backend:** `clickpm/pm/serializers/task_serializers.py`
 - Add `is_blocked = SerializerMethodField()` → True if any `blocked_by` dependency has an incomplete task.
@@ -191,7 +191,7 @@ Client-side filter on already-fetched data.
 
 ---
 
-## [ ] A10 — Bulk Task Status Update
+## [x] A10 — Bulk Task Status Update
 
 **Backend:** `POST /api/tasks/bulk_update/` → `{ "task_ids": [1,2,3], "status": "Done" }`
 
@@ -212,7 +212,7 @@ Client-side filter on already-fetched data.
 
 ---
 
-## [ ] B1 — Fix Mobile Sidebar (Currently Broken)
+## [x] B1 — Fix Mobile Sidebar (Currently Broken)
 
 **Problem:** Hamburger button in `MainLayout.tsx` has no `onClick` — tapping it does nothing.
 
@@ -229,7 +229,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B2 — Cmd+K Command Palette
+## [x] B2 — Cmd+K Command Palette
 
 **File to create:** `frontend/src/components/search/CommandPalette.tsx`
 - Opens on `Ctrl+K` / `Cmd+K` from anywhere
@@ -243,7 +243,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B3 — Quick Inline Task Creation
+## [x] B3 — Quick Inline Task Creation
 
 **Files to update:**
 1. `frontend/src/pages/ProjectDetailPage.tsx` — `+ Add task` row at bottom of each sprint's list. Clicking reveals inline text input, pre-fills project/sprint/milestone, saves on Enter.
@@ -253,7 +253,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B4 — Real-Time Notifications via Socket.io
+## [x] B4 — Real-Time Notifications via Socket.io
 
 **Note:** First check if Django has WebSocket/Socket.io support in `clickpm/config/settings.py`. If not, add `django-channels` before starting frontend work.
 
@@ -265,7 +265,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B5 — Drag-and-Drop Reordering Within Kanban Columns
+## [x] B5 — Drag-and-Drop Reordering Within Kanban Columns
 
 **Backend:**
 - `clickpm/pm/models/task_models.py` — add `position = models.PositiveIntegerField(default=0)`
@@ -279,7 +279,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B6 — Dark Mode Toggle in Navbar
+## [x] B6 — Dark Mode Toggle in Navbar
 
 **File:** `frontend/src/components/layout/MainLayout.tsx`
 - Add sun/moon `<IconButton>` next to notification bell
@@ -289,7 +289,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B7 — Task Comments Wired to API
+## [x] B7 — Task Comments Wired to API
 
 **Audit first:** Read `frontend/src/components/TaskDetailModal.tsx` to confirm what's connected.
 
@@ -301,7 +301,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B8 — Saved Filters via URL Query Params
+## [x] B8 — Saved Filters via URL Query Params
 
 **Files to update:**
 - `frontend/src/pages/TasksPage.tsx` — read/write `status`, `priority`, `assignee` via `useSearchParams()`
@@ -312,7 +312,7 @@ const [mobileOpen, setMobileOpen] = useState(false);
 
 ---
 
-## [ ] B9 — Keyboard Shortcuts
+## [x] B9 — Keyboard Shortcuts
 
 **File to create:** `frontend/src/hooks/useKeyboardShortcuts.ts`
 ```
@@ -330,7 +330,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] B10 — Time Tracking UI
+## [x] B10 — Time Tracking UI
 
 **Depends on C6** (time tracking backend fields). Complete C6 first.
 
@@ -350,7 +350,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C1 — Subtasks
+## [x] C1 — Subtasks
 
 **Why:** Teams need to break tasks into smaller pieces. Without subtasks, everything ends up in the description or as separate disconnected tasks.
 
@@ -377,7 +377,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C2 — Multiple Assignees Per Task
+## [x] C2 — Multiple Assignees Per Task
 
 **Why:** Pair programming, design reviews, and shared ownership require more than one person on a task.
 
@@ -401,7 +401,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C3 — Task Checklists
+## [x] C3 — Task Checklists
 
 **Why:** Most tasks have a list of acceptance criteria or steps. Users currently paste these into the description and manually track them.
 
@@ -435,7 +435,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C4 — Custom Statuses Per Project
+## [x] C4 — Custom Statuses Per Project
 
 **Why:** A software team needs `Backlog → In Dev → Code Review → QA → Done`. A marketing team needs `Idea → Draft → Review → Published`. Hardcoded global statuses block diverse workflows.
 
@@ -463,7 +463,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C5 — Tags on Tasks (Proper M2M)
+## [x] C5 — Tags on Tasks (Proper M2M)
 
 **Why:** Cross-project filtering (e.g., "show all `bug` tasks across every project") is impossible with the current text-only `tags` field on Project.
 
@@ -492,7 +492,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C6 — Time Tracking (Estimated vs. Actual Hours)
+## [x] C6 — Time Tracking (Estimated vs. Actual Hours)
 
 **Why:** Without time tracking, there's no data for billing, capacity planning, or identifying which projects are burning more hours than planned.
 
@@ -521,7 +521,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C7 — Export (CSV / Excel)
+## [x] C7 — Export (CSV / Excel)
 
 **Why:** PMs need to share status reports, import into Excel for stakeholders, or do offline analysis. Missing export is a blocker for enterprise adoption.
 
@@ -541,7 +541,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C8 — Task Watchers / Followers
+## [x] C8 — Task Watchers / Followers
 
 **Why:** Managers and stakeholders need visibility on tasks without being the assignee. Currently, if you're not assigned or @mentioned, you get no notifications.
 
@@ -562,7 +562,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C9 — Recurring Tasks
+## [x] C9 — Recurring Tasks
 
 **Why:** Standups, weekly reports, monthly billing tasks, and regular reviews all need to be manually recreated every cycle without this feature.
 
@@ -592,7 +592,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] C10 — Workload / Capacity View (Dedicated Page)
+## [x] C10 — Workload / Capacity View (Dedicated Page)
 
 **Why:** Team workload data exists in the dashboard API but there's no dedicated page for resource planning or drag-to-rebalance.
 
@@ -621,7 +621,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D1 — Custom Fields on Tasks
+## [x] D1 — Custom Fields on Tasks
 
 **Why:** Different teams need different metadata. A bug tracker needs "Affected Version" and "Browser". A sales team needs "Deal Value" and "Close Date".
 
@@ -654,7 +654,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D2 — Automation Rules
+## [x] D2 — Automation Rules
 
 **Why:** Eliminates repetitive manual work. "When task status = Done → notify manager", "When due date passes → set priority to Critical".
 
@@ -688,7 +688,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D3 — Goals / OKRs
+## [x] D3 — Goals / OKRs
 
 **Why:** Link project work to business objectives. Track whether the team is actually moving the needle on what matters.
 
@@ -727,7 +727,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D4 — Task Templates
+## [x] D4 — Task Templates
 
 **Why:** Common task types (bug reports, feature requests, onboarding checklists) have the same structure every time. Templates eliminate repetitive setup.
 
@@ -755,7 +755,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D5 — Guest / External User Access
+## [x] D5 — Guest / External User Access
 
 **Why:** Clients, contractors, and external reviewers need limited access to specific projects without full workspace membership.
 
@@ -773,7 +773,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D6 — GitHub / GitLab Integration
+## [x] D6 — GitHub / GitLab Integration
 
 **Why:** Developers switch between the PM tool and GitHub constantly. Linking PRs/commits to tasks and auto-updating status on merge eliminates manual status updates.
 
@@ -803,7 +803,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D7 — Velocity & Sprint Reporting
+## [x] D7 — Velocity & Sprint Reporting
 
 **Why:** Sprint velocity (story points / task count completed per sprint) is the core metric for agile forecasting. It's not surfaced anywhere currently.
 
@@ -823,7 +823,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D8 — Calendar Sync (Google / Outlook)
+## [x] D8 — Calendar Sync (Google / Outlook)
 
 **Why:** Task due dates should appear in the tools team members already live in — Google Calendar or Outlook.
 
@@ -843,7 +843,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D9 — Docs / Wiki
+## [x] D9 — Docs / Wiki
 
 **Why:** Project documentation, meeting notes, and SOPs currently live elsewhere (Notion, Confluence, Google Docs) and are disconnected from tasks.
 
@@ -869,7 +869,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] D10 — Import from Other Tools
+## [x] D10 — Import from Other Tools
 
 **Why:** New teams switching from Jira, Trello, or Asana have to manually recreate all their work. Import unlocks adoption.
 
@@ -900,7 +900,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] DOC1 — Business Requirements Document (BRD)
+## [x] DOC1 — Business Requirements Document (BRD)
 
 **File to create:** `docs/BRD.md`
 
@@ -946,7 +946,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] DOC2 — Software Requirements Specification (SRS)
+## [x] DOC2 — Software Requirements Specification (SRS)
 
 **File to create:** `docs/SRS.md`
 
@@ -997,7 +997,7 @@ Only active when focus is not inside an input/textarea. Mount in `MainLayout.tsx
 
 ---
 
-## [ ] DOC3 — Work Order Template
+## [x] DOC3 — Work Order Template
 
 **File to create:** `docs/WORK_ORDER_TEMPLATE.md`
 
@@ -1056,7 +1056,7 @@ Total: X hours
 
 ---
 
-## [ ] DOC4 — API Reference Documentation
+## [x] DOC4 — API Reference Documentation
 
 **File to create:** `docs/API_REFERENCE.md`
 
@@ -1083,7 +1083,7 @@ Cover all 40+ endpoints. Include authentication flow (`/api/auth/login/`, `/api/
 
 ---
 
-## [ ] DOC5 — User Guide
+## [x] DOC5 — User Guide
 
 **File to create:** `docs/USER_GUIDE.md`
 

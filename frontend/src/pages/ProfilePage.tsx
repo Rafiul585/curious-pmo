@@ -30,9 +30,18 @@ import {
   CalendarMonth,
   Assignment,
   Folder,
+  ContentCopy,
+  Refresh,
+  EventNote,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { useGetCurrentUserQuery, useUpdateUserMutation, useChangePasswordMutation } from '../api/userApi';
+import {
+  useGetCurrentUserQuery,
+  useUpdateUserMutation,
+  useChangePasswordMutation,
+  useGetCalendarTokenQuery,
+  useGenerateCalendarTokenMutation,
+} from '../api/userApi';
 import { useGetMyTasksQuery } from '../api/taskApi';
 import { useGetMyProjectsQuery } from '../api/projectApi';
 
@@ -61,6 +70,8 @@ export const ProfilePage = () => {
   const { data: user, isLoading } = useGetCurrentUserQuery();
   const { data: myTasks } = useGetMyTasksQuery();
   const { data: myProjects } = useGetMyProjectsQuery();
+  const { data: calendarTokenData } = useGetCalendarTokenQuery(undefined, { skip: tabValue !== 3 });
+  const [generateCalendarToken, { isLoading: generatingToken }] = useGenerateCalendarTokenMutation();
 
   const [updateUser, { isLoading: updating }] = useUpdateUserMutation();
   const [changePassword, { isLoading: changingPassword }] = useChangePasswordMutation();
@@ -176,7 +187,7 @@ export const ProfilePage = () => {
                   fontWeight: 500,
                 }}
               >
-                {typeof user.role === 'string' ? user.role : user.role.name}
+                {user.role}
               </Typography>
             )}
 
@@ -239,6 +250,7 @@ export const ProfilePage = () => {
               <Tab icon={<Person />} iconPosition="start" label="Profile" />
               <Tab icon={<Lock />} iconPosition="start" label="Security" />
               <Tab icon={<Assignment />} iconPosition="start" label="Activity" />
+              <Tab icon={<EventNote />} iconPosition="start" label="Calendar Sync" />
             </Tabs>
 
             {/* Profile Tab */}
@@ -417,6 +429,114 @@ export const ProfilePage = () => {
                 <Typography variant="body2" color="text.secondary">
                   Your recent activity will be displayed here.
                 </Typography>
+              </Box>
+            </TabPanel>
+
+            {/* Calendar Sync Tab */}
+            <TabPanel value={tabValue} index={3}>
+              <Box sx={{ px: 3 }}>
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                  <EventNote color="primary" />
+                  <Typography variant="h6" fontWeight={600}>Calendar Sync</Typography>
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  Subscribe to your task due dates in Google Calendar, Outlook, or any iCal-compatible app.
+                  The feed automatically includes all tasks assigned to you that have a due date.
+                </Typography>
+
+                {calendarTokenData?.ical_token ? (
+                  <Stack spacing={3}>
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Your .ics Feed URL</Typography>
+                      <Stack direction="row" spacing={1} alignItems="flex-start">
+                        <TextField
+                          value={calendarTokenData.ics_url}
+                          fullWidth
+                          size="small"
+                          InputProps={{ readOnly: true, sx: { fontFamily: 'monospace', fontSize: '0.8rem' } }}
+                        />
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            navigator.clipboard.writeText(calendarTokenData.ics_url);
+                            enqueueSnackbar('URL copied to clipboard', { variant: 'success' });
+                          }}
+                          title="Copy URL"
+                        >
+                          <ContentCopy fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </Box>
+
+                    <Alert severity="info" icon={<CalendarMonth />}>
+                      <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5 }}>
+                        How to add to Google Calendar
+                      </Typography>
+                      <Typography variant="body2">
+                        1. Open Google Calendar → click <strong>+ Other calendars</strong> → <strong>From URL</strong>
+                        <br />
+                        2. Paste the URL above and click <strong>Add calendar</strong>
+                        <br />
+                        3. Tasks with due dates will appear as all-day events
+                      </Typography>
+                    </Alert>
+
+                    <Alert severity="info" icon={<CalendarMonth />}>
+                      <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5 }}>
+                        How to add to Outlook
+                      </Typography>
+                      <Typography variant="body2">
+                        1. Open Outlook Calendar → <strong>Add calendar</strong> → <strong>Subscribe from web</strong>
+                        <br />
+                        2. Paste the URL above and click <strong>Import</strong>
+                      </Typography>
+                    </Alert>
+
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Regenerate URL</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                        Regenerating creates a new URL and invalidates the old one. You'll need to re-subscribe in any calendar app.
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        color="warning"
+                        startIcon={<Refresh />}
+                        disabled={generatingToken}
+                        onClick={async () => {
+                          try {
+                            await generateCalendarToken().unwrap();
+                            enqueueSnackbar('Calendar URL regenerated', { variant: 'success' });
+                          } catch {
+                            enqueueSnackbar('Failed to regenerate URL', { variant: 'error' });
+                          }
+                        }}
+                      >
+                        {generatingToken ? 'Regenerating...' : 'Regenerate URL'}
+                      </Button>
+                    </Box>
+                  </Stack>
+                ) : (
+                  <Stack spacing={2} alignItems="flex-start">
+                    <Typography variant="body2" color="text.secondary">
+                      No calendar feed generated yet. Click below to generate your personal .ics URL.
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      startIcon={<EventNote />}
+                      disabled={generatingToken}
+                      onClick={async () => {
+                        try {
+                          await generateCalendarToken().unwrap();
+                          enqueueSnackbar('Calendar URL generated', { variant: 'success' });
+                        } catch {
+                          enqueueSnackbar('Failed to generate URL', { variant: 'error' });
+                        }
+                      }}
+                    >
+                      {generatingToken ? 'Generating...' : 'Generate Calendar URL'}
+                    </Button>
+                  </Stack>
+                )}
               </Box>
             </TabPanel>
           </Paper>

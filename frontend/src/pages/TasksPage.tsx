@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
   Avatar,
@@ -15,6 +16,7 @@ import {
   FormControl,
   Grid,
   InputLabel,
+  Menu,
   MenuItem,
   Paper,
   Select,
@@ -32,6 +34,8 @@ import {
   Flag,
   CalendarMonth,
   FilterList,
+  FileDownload,
+  ContentCopy,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useCreateTaskMutation, useListTasksQuery, useGetMyTasksQuery, Task } from '../api/taskApi';
@@ -40,6 +44,12 @@ import { useListMilestonesQuery } from '../api/milestoneApi';
 import { useListSprintsQuery } from '../api/sprintApi';
 import { useGetCurrentUserQuery } from '../api/userApi';
 import { TaskDetailModal } from '../components/tasks/TaskDetailModal';
+import { useListTagsQuery } from '../api/tagApi';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../store';
+import { downloadExport } from '../utils/exportDownload';
+import { useListTemplatesQuery, useCreateTaskFromTemplateMutation } from '../api/templateApi';
+import { useListWorkspacesQuery } from '../api/workspaceApi';
 
 const priorityColors: Record<string, 'default' | 'info' | 'warning' | 'error'> = {
   'Low': 'default',
@@ -57,20 +67,57 @@ const statusColors: Record<string, 'default' | 'primary' | 'warning' | 'success'
 
 export const TasksPage = () => {
   const { enqueueSnackbar } = useSnackbar();
-  const [tabValue, setTabValue] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Auto-open create dialog when navigated here with the N shortcut
+  useEffect(() => {
+    const state = location.state as { openCreate?: boolean } | null;
+    if (state?.openCreate) {
+      setCreateDialogOpen(true);
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+    }
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
-  const [filters, setFilters] = useState({
-    status: '',
-    priority: '',
-    project: '',
-  });
+
+  const tabValue = Number(searchParams.get('tab') ?? '0');
+  const filters = {
+    status: searchParams.get('status') ?? '',
+    priority: searchParams.get('priority') ?? '',
+    project: searchParams.get('project') ?? '',
+    tag: searchParams.get('tag') ?? '',
+  };
+
+  const setTabValue = (v: number) =>
+    setSearchParams((p) => { p.set('tab', String(v)); return p; }, { replace: true });
+
+  const setFilters = (updater: typeof filters | ((prev: typeof filters) => typeof filters)) => {
+    const next = typeof updater === 'function' ? updater(filters) : updater;
+    setSearchParams((p) => {
+      if (next.status) p.set('status', next.status); else p.delete('status');
+      if (next.priority) p.set('priority', next.priority); else p.delete('priority');
+      if (next.project) p.set('project', next.project); else p.delete('project');
+      if (next.tag) p.set('tag', next.tag); else p.delete('tag');
+      return p;
+    }, { replace: true });
+  };
 
   const { data: allTasks, isLoading: loadingAll } = useListTasksQuery();
   const { data: myTasks, isLoading: loadingMy } = useGetMyTasksQuery();
   const { data: projects } = useListProjectsQuery();
+  const { data: workspaces } = useListWorkspacesQuery();
+  const firstWorkspaceId = workspaces?.[0]?.id;
+  const { data: templates } = useListTemplatesQuery(firstWorkspaceId!, { skip: !firstWorkspaceId });
+  const [createFromTemplate] = useCreateTaskFromTemplateMutation();
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | ''>('');
   const { data: currentUser } = useGetCurrentUserQuery();
+  const { data: allTags } = useListTagsQuery();
   const [createTask, { isLoading: creating }] = useCreateTaskMutation();
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const [exportAnchor, setExportAnchor] = useState<null | HTMLElement>(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -120,18 +167,27 @@ export const TasksPage = () => {
       return;
     }
     try {
-      await createTask({
-        title: form.title,
-        description: form.description,
-        status: form.status,
-        priority: form.priority,
-        sprint: Number(form.sprint),
-        due_date: form.due_date || undefined,
-        assignee: form.assignee ? Number(form.assignee) : undefined,
-        reporter: form.reporter ? Number(form.reporter) : (currentUser?.id || undefined),
-      }).unwrap();
+      if (selectedTemplateId) {
+        await createFromTemplate({
+          template_id: selectedTemplateId,
+          title: form.title,
+          sprint: Number(form.sprint),
+        }).unwrap();
+      } else {
+        await createTask({
+          title: form.title,
+          description: form.description,
+          status: form.status,
+          priority: form.priority,
+          sprint: Number(form.sprint),
+          due_date: form.due_date || undefined,
+          assignee: form.assignee ? Number(form.assignee) : undefined,
+          reporter: form.reporter ? Number(form.reporter) : (currentUser?.id || undefined),
+        }).unwrap();
+      }
       enqueueSnackbar('Task created successfully', { variant: 'success' });
       setCreateDialogOpen(false);
+      setSelectedTemplateId('');
       setForm({ title: '', description: '', status: 'To-do', priority: 'Medium', project: '', milestone: '', sprint: '', due_date: '', assignee: '', reporter: '' });
     } catch {
       enqueueSnackbar('Failed to create task', { variant: 'error' });
@@ -145,6 +201,7 @@ export const TasksPage = () => {
   const filteredTasks = tasks?.filter((task) => {
     if (filters.status && task.status !== filters.status) return false;
     if (filters.priority && task.priority !== filters.priority) return false;
+    if (filters.tag && !task.tags?.includes(Number(filters.tag))) return false;
     return true;
   });
 
@@ -272,11 +329,56 @@ export const TasksPage = () => {
               <MenuItem value="Critical">Critical</MenuItem>
             </Select>
           </FormControl>
-          {(filters.status || filters.priority) && (
-            <Button size="small" onClick={() => setFilters({ status: '', priority: '', project: '' })}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Tag</InputLabel>
+            <Select
+              value={filters.tag}
+              label="Tag"
+              onChange={(e) => setFilters((f) => ({ ...f, tag: e.target.value }))}
+            >
+              <MenuItem value="">All</MenuItem>
+              {allTags?.map((tag) => (
+                <MenuItem key={tag.id} value={String(tag.id)}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color, mr: 1, display: 'inline-block' }} />
+                  {tag.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          {(filters.status || filters.priority || filters.tag) && (
+            <Button size="small" onClick={() => setFilters({ status: '', priority: '', project: '', tag: '' })}>
               Clear Filters
             </Button>
           )}
+          <Box sx={{ flex: 1 }} />
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<FileDownload fontSize="small" />}
+            onClick={(e) => setExportAnchor(e.currentTarget)}
+          >
+            Export
+          </Button>
+          <Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}>
+            {(['csv', 'xlsx'] as const).map((fmt) => (
+              <MenuItem
+                key={fmt}
+                onClick={async () => {
+                  setExportAnchor(null);
+                  const params = new URLSearchParams({ format: fmt });
+                  if (filters.status) params.set('status', filters.status);
+                  if (filters.priority) params.set('priority', filters.priority);
+                  try {
+                    await downloadExport(`/tasks/export/?${params}`, `tasks.${fmt}`, accessToken);
+                  } catch {
+                    enqueueSnackbar('Export failed', { variant: 'error' });
+                  }
+                }}
+              >
+                Export as {fmt.toUpperCase()}
+              </MenuItem>
+            ))}
+          </Menu>
         </Stack>
       </Paper>
 
@@ -319,6 +421,65 @@ export const TasksPage = () => {
         <DialogTitle>Create New Task</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            {/* Template picker */}
+            {templates && templates.length > 0 && (
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<ContentCopy fontSize="small" />}
+                  onClick={() => setTemplatePickerOpen((v) => !v)}
+                  color={selectedTemplateId ? 'primary' : 'inherit'}
+                >
+                  {selectedTemplateId
+                    ? `Template: ${templates.find((t) => t.id === selectedTemplateId)?.name}`
+                    : 'Use Template'}
+                </Button>
+                {selectedTemplateId && (
+                  <Button size="small" color="inherit" onClick={() => setSelectedTemplateId('')}>
+                    Clear
+                  </Button>
+                )}
+              </Stack>
+            )}
+            {templatePickerOpen && templates && templates.length > 0 && (
+              <Stack spacing={0.5}>
+                {templates.map((tpl) => (
+                  <Paper
+                    key={tpl.id}
+                    variant="outlined"
+                    sx={{
+                      px: 1.5, py: 1, cursor: 'pointer',
+                      bgcolor: selectedTemplateId === tpl.id ? 'action.selected' : undefined,
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}
+                    onClick={() => {
+                      setSelectedTemplateId(tpl.id);
+                      setForm((f) => ({
+                        ...f,
+                        description: tpl.description || f.description,
+                        priority: tpl.default_priority,
+                      }));
+                      setTemplatePickerOpen(false);
+                    }}
+                  >
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <ContentCopy fontSize="small" color="action" />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" fontWeight={600}>{tpl.name}</Typography>
+                        {tpl.description && (
+                          <Typography variant="caption" color="text.secondary" noWrap>{tpl.description}</Typography>
+                        )}
+                      </Box>
+                      <Chip label={tpl.default_priority} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 18 }} />
+                      {tpl.checklist_items.length > 0 && (
+                        <Chip label={`${tpl.checklist_items.length} items`} size="small" sx={{ fontSize: '0.65rem', height: 18 }} />
+                      )}
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
             <TextField
               label="Task Title"
               value={form.title}

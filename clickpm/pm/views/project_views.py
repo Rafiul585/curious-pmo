@@ -6,13 +6,16 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
 
-from pm.models.project_models import Project, ProjectMember, Milestone, Sprint
+from pm.models.project_models import Project, ProjectMember, Milestone, Sprint, ProjectStatus, CustomFieldDefinition, AutomationRule
 from pm.models.workspace_models import WorkspaceMember
 from pm.serializers.project_serializers import (
     ProjectSerializer, ProjectDetailSerializer, ProjectCreateUpdateSerializer,
     MilestoneSerializer, MilestoneCreateUpdateSerializer,
-    SprintSerializer, SprintCreateUpdateSerializer
+    SprintSerializer, SprintCreateUpdateSerializer,
+    ProjectStatusSerializer,
 )
+from pm.serializers.custom_field_serializers import CustomFieldDefinitionSerializer
+from pm.serializers.automation_serializers import AutomationRuleSerializer
 from pm.permissions import IsProjectMember, CanViewProject
 from pm.utils.permission_helpers import get_accessible_projects
 from pm.services.audit_service import AuditService, EventType
@@ -308,6 +311,49 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         return Response(data)
 
+    @action(detail=True, methods=['GET'])
+    def export(self, request, pk=None):
+        """
+        GET /api/projects/{id}/export/?format=csv|xlsx
+        Downloads all tasks in this project as a file.
+        """
+        from pm.services.export_service import generate_csv_response, generate_xlsx_response
+        from pm.models.task_models import Task
+
+        project = self.get_object()
+        export_format = request.query_params.get('format', 'csv')
+
+        tasks = Task.objects.filter(
+            sprint__milestone__project=project
+        ).select_related(
+            'assignee', 'reporter', 'sprint__milestone__project'
+        ).prefetch_related('tags', 'assignees')
+
+        filename = project.name + '_tasks'
+        if export_format == 'xlsx':
+            return generate_xlsx_response(tasks, filename=filename)
+        return generate_csv_response(tasks, filename=filename)
+
+    @action(detail=True, methods=['GET', 'POST'])
+    def statuses(self, request, pk=None):
+        """
+        GET /api/projects/{id}/statuses/ — list custom statuses
+        POST /api/projects/{id}/statuses/ — create a custom status
+        """
+        project = self.get_object()
+
+        if request.method == 'GET':
+            qs = ProjectStatus.objects.filter(project=project).order_by('order', 'id')
+            return Response(ProjectStatusSerializer(qs, many=True).data)
+
+        data = request.data.copy()
+        data['project'] = project.id
+        serializer = ProjectStatusSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['POST'])
     def update_timeline_item(self, request, pk=None):
         """
@@ -556,3 +602,59 @@ class SprintViewSet(viewsets.ModelViewSet):
             )
 
         return Response(data)
+
+    @action(detail=True, methods=['GET'])
+    def burndown(self, request, pk=None):
+        """
+        GET /api/sprints/{id}/burndown/
+
+        Returns ideal vs. actual burndown data for the sprint.
+        """
+        from pm.services.burndown_service import get_sprint_burndown
+        sprint = self.get_object()
+        data = get_sprint_burndown(sprint)
+        return Response(data)
+
+
+class ProjectStatusViewSet(viewsets.ModelViewSet):
+    """CRUD for individual ProjectStatus records (used for PATCH/DELETE by ID)."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProjectStatusSerializer
+
+    def get_queryset(self):
+        accessible_projects = get_accessible_projects(self.request.user)
+        return ProjectStatus.objects.filter(project__in=accessible_projects)
+
+
+class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for CustomFieldDefinition.
+    GET  /api/custom-fields/?project=<id>  — list fields for a project
+    POST /api/custom-fields/               — create a field
+    PATCH/DELETE /api/custom-fields/<id>/  — update/delete a field
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = CustomFieldDefinitionSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['project']
+
+    def get_queryset(self):
+        accessible_projects = get_accessible_projects(self.request.user)
+        return CustomFieldDefinition.objects.filter(project__in=accessible_projects).order_by('order', 'id')
+
+
+class AutomationRuleViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for AutomationRule.
+    GET  /api/automations/?project=<id>  — list rules for a project
+    POST /api/automations/               — create a rule
+    PATCH/DELETE /api/automations/<id>/  — update/delete a rule
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = AutomationRuleSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['project', 'is_active']
+
+    def get_queryset(self):
+        accessible_projects = get_accessible_projects(self.request.user)
+        return AutomationRule.objects.filter(project__in=accessible_projects)

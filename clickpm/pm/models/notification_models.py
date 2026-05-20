@@ -16,6 +16,7 @@ class Notification(models.Model):
         ('comment', 'Comment'),
         ('member_added', 'Member Added'),
         ('status_change', 'Status Change'),
+        ('health_degradation', 'Health Degradation'),
         ('general', 'General'),
     ]
     

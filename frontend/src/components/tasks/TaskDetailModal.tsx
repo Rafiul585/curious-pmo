@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Avatar,
+  AvatarGroup,
   Box,
   Button,
   Chip,
@@ -12,20 +13,29 @@ import {
   Divider,
   Grid,
   IconButton,
+  InputLabel,
+  FormControl,
   LinearProgress,
   Link,
   List,
   ListItem,
+  ListItemAvatar,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
   Menu,
   MenuItem,
+  OutlinedInput,
+  Paper,
+  Select,
   Stack,
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
   alpha,
+  Checkbox,
 } from '@mui/material';
 import {
   Close,
@@ -43,6 +53,16 @@ import {
   InsertDriveFile,
   Create,
   SwapHoriz,
+  Add,
+  CheckCircle,
+  RadioButtonUnchecked,
+  DeleteOutline,
+  PlaylistAdd,
+  Visibility,
+  VisibilityOff,
+  Repeat,
+  GitHub as GitHubIcon,
+  OpenInNew,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import {
@@ -51,10 +71,31 @@ import {
   useDeleteTaskMutation,
   useAssignTaskToMeMutation,
   useGetTaskActivityLogsQuery,
+  useGetTaskTimeLogsQuery,
+  useLogTimeMutation,
+  useCreateTaskMutation,
+  useListSubtasksQuery,
+  useWatchTaskMutation,
+  useUnwatchTaskMutation,
 } from '../../api/taskApi';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../store';
+import { selectUser } from '../../store/slices/authSlice';
 import { useGetTaskCommentsQuery, useCreateCommentMutation } from '../../api/commentApi';
+import {
+  useListChecklistsQuery,
+  useCreateChecklistMutation,
+  useDeleteChecklistMutation,
+  useCreateChecklistItemMutation,
+  useUpdateChecklistItemMutation,
+  useDeleteChecklistItemMutation,
+} from '../../api/checklistApi';
 import { useGetProjectQuery } from '../../api/projectApi';
+import { useListTagsQuery, useAddTagToTaskMutation, useRemoveTagFromTaskMutation, useCreateTagMutation } from '../../api/tagApi';
 import { useGetTaskAttachmentsQuery, useUploadAttachmentMutation, useDeleteAttachmentMutation } from '../../api/attachmentApi';
+import { useGetTaskCustomFieldValuesQuery, useSetCustomFieldValueMutation } from '../../api/customFieldApi';
+import type { CustomFieldValue } from '../../api/customFieldApi';
+import { useListTaskGitLinksQuery, useDeleteTaskGitLinkMutation } from '../../api/gitApi';
 
 interface TaskDetailModalProps {
   taskId: number | null;
@@ -83,7 +124,11 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
   const [editMode, setEditMode] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [newComment, setNewComment] = useState('');
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStart, setMentionStart] = useState(-1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const [editForm, setEditForm] = useState({
     title: '',
     description: '',
@@ -91,7 +136,10 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
     priority: '',
     due_date: '',
     assignee: '' as string | number,
+    assignees: [] as number[],
     reporter: '' as string | number,
+    recurrence: '' as string,
+    recurrence_end: '' as string,
   });
 
   const { data: task, isLoading } = useGetTaskQuery(taskId!, { skip: !taskId });
@@ -106,12 +154,88 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
     { skip: !taskId }
   );
   const { data: attachments, isLoading: loadingAttachments } = useGetTaskAttachmentsQuery(taskId!, { skip: !taskId });
+  const { data: timeLogs } = useGetTaskTimeLogsQuery(taskId!, { skip: !taskId });
   const [updateTask, { isLoading: updating }] = useUpdateTaskMutation();
   const [deleteTask, { isLoading: deleting }] = useDeleteTaskMutation();
   const [assignToMe] = useAssignTaskToMeMutation();
   const [createComment, { isLoading: commenting }] = useCreateCommentMutation();
+  const [logTime, { isLoading: loggingTime }] = useLogTimeMutation();
   const [uploadAttachment, { isLoading: uploading }] = useUploadAttachmentMutation();
   const [deleteAttachment] = useDeleteAttachmentMutation();
+  const { data: subtasks } = useListSubtasksQuery(taskId!, { skip: !taskId });
+  const [createTask] = useCreateTaskMutation();
+  const { data: checklists } = useListChecklistsQuery(taskId!, { skip: !taskId });
+  const [createChecklist] = useCreateChecklistMutation();
+  const [deleteChecklist] = useDeleteChecklistMutation();
+  const [createChecklistItem] = useCreateChecklistItemMutation();
+  const [updateChecklistItem] = useUpdateChecklistItemMutation();
+  const [deleteChecklistItem] = useDeleteChecklistItemMutation();
+
+  const currentUser = useSelector((state: RootState) => selectUser(state));
+  const { data: gitLinks } = useListTaskGitLinksQuery(taskId!, { skip: !taskId });
+  const [deleteGitLink] = useDeleteTaskGitLinkMutation();
+  const [watchTask, { isLoading: watching }] = useWatchTaskMutation();
+  const [unwatchTask, { isLoading: unwatching }] = useUnwatchTaskMutation();
+  const isWatching = !!(currentUser && task?.watchers_details?.some((w) => w.id === currentUser.id));
+
+  const handleToggleWatch = async () => {
+    if (!taskId) return;
+    try {
+      if (isWatching) {
+        await unwatchTask(taskId).unwrap();
+        enqueueSnackbar('Stopped watching task', { variant: 'info' });
+      } else {
+        await watchTask(taskId).unwrap();
+        enqueueSnackbar('Now watching task', { variant: 'success' });
+      }
+    } catch {
+      enqueueSnackbar('Failed to update watch status', { variant: 'error' });
+    }
+  };
+
+  const workspaceId = project?.workspace as number | undefined;
+  const { data: workspaceTags } = useListTagsQuery(
+    workspaceId ? { workspace: workspaceId } : undefined,
+    { skip: !workspaceId }
+  );
+  const [addTagToTask] = useAddTagToTaskMutation();
+  const [removeTagFromTask] = useRemoveTagFromTaskMutation();
+  const [createTag] = useCreateTagMutation();
+  const [tagMenuAnchor, setTagMenuAnchor] = useState<null | HTMLElement>(null);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#6B7280');
+
+  const { data: customFieldValues } = useGetTaskCustomFieldValuesQuery(taskId!, { skip: !taskId });
+  const [setCustomFieldValue] = useSetCustomFieldValueMutation();
+  const [cfDrafts, setCfDrafts] = useState<Record<number, unknown>>({});
+
+  const handleCfChange = (fieldId: number, value: unknown) => {
+    setCfDrafts((d) => ({ ...d, [fieldId]: value }));
+  };
+
+  const handleCfSave = async (fieldId: number, value: unknown) => {
+    if (!taskId) return;
+    try {
+      await setCustomFieldValue({ taskId, field: fieldId, value }).unwrap();
+    } catch {
+      enqueueSnackbar('Failed to save custom field', { variant: 'error' });
+    }
+  };
+
+  const getCfValue = (fv: CustomFieldValue) => {
+    if (fv.field in cfDrafts) return cfDrafts[fv.field];
+    return fv.value;
+  };
+
+  const [logHours, setLogHours] = useState('');
+  const [logNote, setLogNote] = useState('');
+  const [showAddSubtask, setShowAddSubtask] = useState(false);
+  const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [selectedSubtaskId, setSelectedSubtaskId] = useState<number | null>(null);
+  const [newChecklistTitle, setNewChecklistTitle] = useState('');
+  const [showNewChecklist, setShowNewChecklist] = useState(false);
+  const [newItemText, setNewItemText] = useState<Record<number, string>>({});
+  const [showNewItem, setShowNewItem] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (task) {
@@ -122,7 +246,10 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
         priority: task.priority,
         due_date: task.due_date || '',
         assignee: task.assignee || '',
+        assignees: task.assignees || [],
         reporter: task.reporter || '',
+        recurrence: task.recurrence || '',
+        recurrence_end: task.recurrence_end || '',
       });
     }
   }, [task]);
@@ -139,7 +266,10 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
           priority: editForm.priority,
           due_date: editForm.due_date || undefined,
           assignee: editForm.assignee ? Number(editForm.assignee) : undefined,
+          assignees: editForm.assignees,
           reporter: editForm.reporter ? Number(editForm.reporter) : undefined,
+          recurrence: editForm.recurrence || null,
+          recurrence_end: editForm.recurrence_end || null,
         },
       }).unwrap();
       enqueueSnackbar('Task updated successfully', { variant: 'success' });
@@ -180,6 +310,103 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
       enqueueSnackbar('Comment added', { variant: 'success' });
     } catch {
       enqueueSnackbar('Failed to add comment', { variant: 'error' });
+    }
+  };
+
+  const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setNewComment(val);
+    const pos = e.target.selectionStart ?? val.length;
+    const match = val.slice(0, pos).match(/@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionStart(pos - match[0].length);
+      setMentionOpen(true);
+    } else {
+      setMentionOpen(false);
+    }
+  };
+
+  const handleMentionSelect = (username: string) => {
+    const before = newComment.slice(0, mentionStart);
+    const after = newComment.slice(mentionStart + 1 + mentionQuery.length);
+    setNewComment(`${before}@${username} ${after}`);
+    setMentionOpen(false);
+    setTimeout(() => commentInputRef.current?.focus(), 0);
+  };
+
+  const mentionMembers = projectMembers
+    .filter((m) => !mentionQuery || m.user.username.toLowerCase().startsWith(mentionQuery.toLowerCase()))
+    .slice(0, 6);
+
+  const handleAddSubtask = async () => {
+    const title = subtaskTitle.trim();
+    if (!taskId || !title || !task) return;
+    try {
+      await createTask({
+        title,
+        status: 'To-do',
+        priority: 'Medium',
+        sprint: task.sprint as number,
+        parent: taskId,
+      }).unwrap();
+      setSubtaskTitle('');
+      setShowAddSubtask(false);
+      enqueueSnackbar('Subtask created', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to create subtask', { variant: 'error' });
+    }
+  };
+
+  const handleCreateChecklist = async () => {
+    const title = newChecklistTitle.trim();
+    if (!taskId || !title) return;
+    try {
+      await createChecklist({ task: taskId, title }).unwrap();
+      setNewChecklistTitle('');
+      setShowNewChecklist(false);
+      enqueueSnackbar('Checklist created', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to create checklist', { variant: 'error' });
+    }
+  };
+
+  const handleAddItem = async (checklistId: number) => {
+    const text = (newItemText[checklistId] || '').trim();
+    if (!taskId || !text) return;
+    try {
+      await createChecklistItem({ checklist: checklistId, text, taskId }).unwrap();
+      setNewItemText((p) => ({ ...p, [checklistId]: '' }));
+      setShowNewItem((p) => ({ ...p, [checklistId]: false }));
+    } catch {
+      enqueueSnackbar('Failed to add item', { variant: 'error' });
+    }
+  };
+
+  const handleToggleItem = async (itemId: number, checked: boolean) => {
+    if (!taskId) return;
+    try {
+      await updateChecklistItem({ id: itemId, taskId, is_checked: checked }).unwrap();
+    } catch {
+      enqueueSnackbar('Failed to update item', { variant: 'error' });
+    }
+  };
+
+  const handleLogTime = async () => {
+    const hours = parseFloat(logHours);
+    if (!taskId || isNaN(hours) || hours <= 0) return;
+    try {
+      await logTime({
+        task: taskId,
+        hours,
+        date: new Date().toISOString().slice(0, 10),
+        note: logNote.trim(),
+      }).unwrap();
+      setLogHours('');
+      setLogNote('');
+      enqueueSnackbar(`${hours}h logged`, { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to log time', { variant: 'error' });
     }
   };
 
@@ -302,10 +529,18 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                           size="small"
                           sx={{ minWidth: 120 }}
                         >
-                          <MenuItem value="To-do">To Do</MenuItem>
-                          <MenuItem value="In Progress">In Progress</MenuItem>
-                          <MenuItem value="Review">Review</MenuItem>
-                          <MenuItem value="Done">Done</MenuItem>
+                          {project?.custom_statuses && project.custom_statuses.length > 0 ? (
+                            project.custom_statuses.map((s) => (
+                              <MenuItem key={s.id} value={s.name}>{s.name}</MenuItem>
+                            ))
+                          ) : (
+                            [
+                              <MenuItem key="todo" value="To-do">To Do</MenuItem>,
+                              <MenuItem key="inprogress" value="In Progress">In Progress</MenuItem>,
+                              <MenuItem key="review" value="Review">Review</MenuItem>,
+                              <MenuItem key="done" value="Done">Done</MenuItem>,
+                            ]
+                          )}
                         </TextField>
                         <TextField
                           label="Priority"
@@ -335,6 +570,14 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                           size="small"
                           variant="outlined"
                         />
+                        {task.is_blocked && (
+                          <Chip
+                            label="Blocked"
+                            color="error"
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
+                        )}
                       </>
                     )}
                   </Stack>
@@ -360,26 +603,313 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
 
                   <Divider sx={{ my: 2 }} />
 
+                  {/* Subtasks */}
+                  <Box sx={{ mb: 2 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Subtasks
+                        {subtasks && subtasks.length > 0 && (
+                          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                            ({subtasks.filter((s) => s.status === 'Done').length}/{subtasks.length} done)
+                          </Typography>
+                        )}
+                      </Typography>
+                      <Button
+                        size="small"
+                        startIcon={<Add fontSize="small" />}
+                        onClick={() => setShowAddSubtask(true)}
+                      >
+                        Add
+                      </Button>
+                    </Stack>
+
+                    {subtasks && subtasks.length > 0 && (
+                      <Stack spacing={0.5} sx={{ mb: 1 }}>
+                        {subtasks.map((sub) => (
+                          <Paper
+                            key={sub.id}
+                            variant="outlined"
+                            sx={{
+                              px: 1.5,
+                              py: 0.75,
+                              cursor: 'pointer',
+                              '&:hover': { bgcolor: 'action.hover' },
+                            }}
+                            onClick={() => setSelectedSubtaskId(sub.id)}
+                          >
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                              {sub.status === 'Done' ? (
+                                <CheckCircle fontSize="small" color="success" />
+                              ) : (
+                                <RadioButtonUnchecked fontSize="small" color="disabled" />
+                              )}
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  flex: 1,
+                                  textDecoration: sub.status === 'Done' ? 'line-through' : 'none',
+                                  color: sub.status === 'Done' ? 'text.secondary' : 'text.primary',
+                                }}
+                              >
+                                {sub.title}
+                              </Typography>
+                              <Chip
+                                label={sub.status}
+                                size="small"
+                                color={
+                                  sub.status === 'Done' ? 'success' :
+                                  sub.status === 'In Progress' ? 'primary' :
+                                  sub.status === 'Review' ? 'warning' : 'default'
+                                }
+                                sx={{ fontSize: '0.65rem', height: 18 }}
+                              />
+                            </Stack>
+                          </Paper>
+                        ))}
+                      </Stack>
+                    )}
+
+                    {showAddSubtask && (
+                      <TextField
+                        autoFocus
+                        size="small"
+                        fullWidth
+                        placeholder="Subtask title… (Enter to save, Escape to cancel)"
+                        value={subtaskTitle}
+                        onChange={(e) => setSubtaskTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); handleAddSubtask(); }
+                          if (e.key === 'Escape') { setShowAddSubtask(false); setSubtaskTitle(''); }
+                        }}
+                        onBlur={() => { if (!subtaskTitle.trim()) { setShowAddSubtask(false); } }}
+                        variant="outlined"
+                        sx={{ mt: 0.5 }}
+                      />
+                    )}
+                  </Box>
+
+                  <Divider sx={{ my: 2 }} />
+
+                  {/* Checklists */}
+                  <Box sx={{ mb: 2 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Checklists
+                      </Typography>
+                      <Button
+                        size="small"
+                        startIcon={<PlaylistAdd fontSize="small" />}
+                        onClick={() => setShowNewChecklist(true)}
+                      >
+                        Add Checklist
+                      </Button>
+                    </Stack>
+
+                    {showNewChecklist && (
+                      <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+                        <TextField
+                          autoFocus
+                          size="small"
+                          placeholder="Checklist title…"
+                          value={newChecklistTitle}
+                          onChange={(e) => setNewChecklistTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); handleCreateChecklist(); }
+                            if (e.key === 'Escape') { setShowNewChecklist(false); setNewChecklistTitle(''); }
+                          }}
+                          sx={{ flex: 1 }}
+                        />
+                        <Button size="small" variant="contained" onClick={handleCreateChecklist} disabled={!newChecklistTitle.trim()}>
+                          Add
+                        </Button>
+                        <Button size="small" onClick={() => { setShowNewChecklist(false); setNewChecklistTitle(''); }}>
+                          Cancel
+                        </Button>
+                      </Stack>
+                    )}
+
+                    {checklists && checklists.map((cl) => {
+                      const pct = cl.total_items > 0
+                        ? Math.round((cl.checked_items / cl.total_items) * 100)
+                        : 0;
+                      return (
+                        <Box key={cl.id} sx={{ mb: 2 }}>
+                          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                            <Typography variant="body2" fontWeight={600}>{cl.title}</Typography>
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                              <Typography variant="caption" color="text.secondary">
+                                {cl.checked_items}/{cl.total_items}
+                              </Typography>
+                              <IconButton
+                                size="small"
+                                onClick={() => taskId && deleteChecklist({ id: cl.id, taskId })}
+                                sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                              >
+                                <DeleteOutline fontSize="small" />
+                              </IconButton>
+                            </Stack>
+                          </Stack>
+
+                          <LinearProgress
+                            variant="determinate"
+                            value={pct}
+                            color={pct === 100 ? 'success' : 'primary'}
+                            sx={{ height: 4, borderRadius: 2, mb: 1 }}
+                          />
+
+                          <Stack spacing={0.5}>
+                            {cl.items.map((item) => (
+                              <Stack
+                                key={item.id}
+                                direction="row"
+                                alignItems="center"
+                                spacing={1}
+                                sx={{
+                                  px: 1,
+                                  py: 0.5,
+                                  borderRadius: 1,
+                                  '&:hover .item-delete': { opacity: 1 },
+                                }}
+                              >
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleToggleItem(item.id, !item.is_checked)}
+                                  sx={{ p: 0 }}
+                                >
+                                  {item.is_checked
+                                    ? <CheckCircle fontSize="small" color="success" />
+                                    : <RadioButtonUnchecked fontSize="small" color="disabled" />}
+                                </IconButton>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    flex: 1,
+                                    textDecoration: item.is_checked ? 'line-through' : 'none',
+                                    color: item.is_checked ? 'text.secondary' : 'text.primary',
+                                  }}
+                                >
+                                  {item.text}
+                                </Typography>
+                                <IconButton
+                                  className="item-delete"
+                                  size="small"
+                                  onClick={() => taskId && deleteChecklistItem({ id: item.id, taskId })}
+                                  sx={{ p: 0, opacity: 0, transition: 'opacity 0.15s', color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                                >
+                                  <DeleteOutline fontSize="small" />
+                                </IconButton>
+                              </Stack>
+                            ))}
+                          </Stack>
+
+                          {/* Add item row */}
+                          {showNewItem[cl.id] ? (
+                            <Stack direction="row" spacing={1} sx={{ mt: 0.5, pl: 1 }}>
+                              <TextField
+                                autoFocus
+                                size="small"
+                                placeholder="New item…"
+                                value={newItemText[cl.id] || ''}
+                                onChange={(e) => setNewItemText((p) => ({ ...p, [cl.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') { e.preventDefault(); handleAddItem(cl.id); }
+                                  if (e.key === 'Escape') setShowNewItem((p) => ({ ...p, [cl.id]: false }));
+                                }}
+                                sx={{ flex: 1 }}
+                              />
+                              <Button size="small" variant="contained" onClick={() => handleAddItem(cl.id)}>
+                                Add
+                              </Button>
+                            </Stack>
+                          ) : (
+                            <Box
+                              sx={{
+                                mt: 0.5,
+                                pl: 1,
+                                cursor: 'pointer',
+                                color: 'text.secondary',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                '&:hover': { color: 'text.primary' },
+                              }}
+                              onClick={() => setShowNewItem((p) => ({ ...p, [cl.id]: true }))}
+                            >
+                              <Add fontSize="small" />
+                              <Typography variant="caption">Add item</Typography>
+                            </Box>
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+
+                  <Divider sx={{ my: 2 }} />
+
                   {/* Tabs for Comments & Activity */}
                   <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 2 }}>
                     <Tab icon={<CommentIcon fontSize="small" />} iconPosition="start" label="Comments" />
                     <Tab icon={<History fontSize="small" />} iconPosition="start" label="Activity" />
                     <Tab icon={<AttachFile fontSize="small" />} iconPosition="start" label="Attachments" />
+                    <Tab icon={<GitHubIcon fontSize="small" />} iconPosition="start" label={`Git Links${gitLinks && gitLinks.length > 0 ? ` (${gitLinks.length})` : ''}`} />
                   </Tabs>
 
                   {/* Comments Tab */}
                   {tabValue === 0 && (
                     <Box>
                       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-                        <TextField
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          placeholder="Add a comment..."
-                          fullWidth
-                          multiline
-                          rows={2}
-                          size="small"
-                        />
+                        <Box sx={{ position: 'relative', flex: 1 }}>
+                          <TextField
+                            value={newComment}
+                            onChange={handleCommentChange}
+                            onKeyDown={(e) => { if (e.key === 'Escape') setMentionOpen(false); }}
+                            onBlur={() => setTimeout(() => setMentionOpen(false), 150)}
+                            placeholder="Add a comment… type @ to mention someone"
+                            fullWidth
+                            multiline
+                            rows={2}
+                            size="small"
+                            inputRef={commentInputRef}
+                          />
+                          {mentionOpen && mentionMembers.length > 0 && (
+                            <Paper
+                              elevation={4}
+                              sx={{
+                                position: 'absolute',
+                                zIndex: 1500,
+                                top: '100%',
+                                left: 0,
+                                right: 0,
+                                maxHeight: 200,
+                                overflow: 'auto',
+                                mt: 0.5,
+                                borderRadius: 1,
+                              }}
+                            >
+                              <List dense disablePadding>
+                                {mentionMembers.map((member) => (
+                                  <ListItemButton
+                                    key={member.user.id}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      handleMentionSelect(member.user.username);
+                                    }}
+                                  >
+                                    <ListItemAvatar sx={{ minWidth: 36 }}>
+                                      <Avatar sx={{ width: 24, height: 24, fontSize: '0.7rem', bgcolor: 'primary.main' }}>
+                                        {member.user.username[0].toUpperCase()}
+                                      </Avatar>
+                                    </ListItemAvatar>
+                                    <ListItemText
+                                      primary={member.user.username}
+                                      primaryTypographyProps={{ variant: 'body2' }}
+                                    />
+                                  </ListItemButton>
+                                ))}
+                              </List>
+                            </Paper>
+                          )}
+                        </Box>
                         <Button
                           variant="contained"
                           onClick={handleAddComment}
@@ -558,34 +1088,117 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                       )}
                     </Box>
                   )}
+
+                  {/* Git Links Tab */}
+                  {tabValue === 3 && (
+                    <Box>
+                      {gitLinks && gitLinks.length > 0 ? (
+                        <List dense>
+                          {gitLinks.map((link) => (
+                            <ListItem
+                              key={link.id}
+                              secondaryAction={
+                                <IconButton edge="end" size="small"
+                                  onClick={async () => {
+                                    try {
+                                      await deleteGitLink({ id: link.id, taskId: taskId! }).unwrap();
+                                    } catch {
+                                      enqueueSnackbar('Failed to remove link', { variant: 'error' });
+                                    }
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              }
+                              sx={{ borderRadius: 1, mb: 0.5, bgcolor: (theme) => alpha(theme.palette.grey[500], 0.05) }}
+                            >
+                              <ListItemIcon sx={{ minWidth: 36 }}>
+                                <GitHubIcon fontSize="small" color="action" />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={
+                                  <Stack direction="row" alignItems="center" spacing={1}>
+                                    <Chip
+                                      label={link.status}
+                                      size="small"
+                                      color={link.status === 'merged' ? 'success' : link.status === 'closed' ? 'default' : 'primary'}
+                                      sx={{ height: 18, fontSize: '0.65rem' }}
+                                    />
+                                    {link.pr_url ? (
+                                      <Link href={link.pr_url} target="_blank" rel="noopener" variant="body2" underline="hover"
+                                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        {link.pr_title || `PR #${link.pr_number}`}
+                                        <OpenInNew sx={{ fontSize: 12 }} />
+                                      </Link>
+                                    ) : (
+                                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                                        {link.commit_sha.slice(0, 8)} — {link.pr_title?.slice(0, 60)}
+                                      </Typography>
+                                    )}
+                                  </Stack>
+                                }
+                              />
+                            </ListItem>
+                          ))}
+                        </List>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          No Git links yet. Mention <code>[CUR-{taskId}]</code> in a commit message or PR to link it here.
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
                 </Grid>
 
                 {/* Sidebar */}
                 <Grid item xs={12} md={4}>
                   <Stack spacing={2}>
-                    {/* Assignee */}
+                    {/* Assignees */}
                     <Box>
                       <Typography variant="caption" color="text.secondary">
-                        Assignee
+                        Assignees
                       </Typography>
                       {editMode ? (
-                        <TextField
-                          select
-                          value={editForm.assignee}
-                          onChange={(e) => setEditForm((f) => ({ ...f, assignee: e.target.value }))}
-                          size="small"
-                          fullWidth
-                          sx={{ mt: 0.5 }}
-                        >
-                          <MenuItem value="">Unassigned</MenuItem>
-                          {projectMembers.map((member) => (
-                            <MenuItem key={member.user.id} value={member.user.id}>
-                              {member.user.first_name && member.user.last_name
-                                ? `${member.user.first_name} ${member.user.last_name}`
-                                : member.user.username}
-                            </MenuItem>
+                        <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
+                          <InputLabel>Assignees</InputLabel>
+                          <Select
+                            multiple
+                            value={editForm.assignees}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                assignees: e.target.value as number[],
+                              }))
+                            }
+                            input={<OutlinedInput label="Assignees" />}
+                            renderValue={(selected) =>
+                              (selected as number[])
+                                .map((id) => projectMembers.find((m) => m.user.id === id)?.user.username ?? id)
+                                .join(', ')
+                            }
+                          >
+                            {projectMembers.map((member) => (
+                              <MenuItem key={member.user.id} value={member.user.id}>
+                                <Avatar sx={{ width: 22, height: 22, mr: 1, fontSize: '0.65rem', bgcolor: 'primary.main' }}>
+                                  {member.user.username[0].toUpperCase()}
+                                </Avatar>
+                                {member.user.first_name && member.user.last_name
+                                  ? `${member.user.first_name} ${member.user.last_name}`
+                                  : member.user.username}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      ) : task.assignees_details && task.assignees_details.length > 0 ? (
+                        <AvatarGroup max={4} sx={{ mt: 0.5, justifyContent: 'flex-start', '& .MuiAvatar-root': { width: 28, height: 28, fontSize: '0.7rem' } }}>
+                          {task.assignees_details.map((u) => (
+                            <Tooltip key={u.id} title={u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}>
+                              <Avatar sx={{ bgcolor: 'primary.main' }}>
+                                {u.username[0].toUpperCase()}
+                              </Avatar>
+                            </Tooltip>
                           ))}
-                        </TextField>
+                        </AvatarGroup>
                       ) : task.assignee_details ? (
                         <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.5 }}>
                           <Avatar sx={{ width: 28, height: 28, bgcolor: 'primary.main' }}>
@@ -671,6 +1284,276 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                       )}
                     </Box>
 
+                    {/* Recurrence */}
+                    <Box>
+                      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 0.5 }}>
+                        <Repeat fontSize="small" color="action" sx={{ fontSize: '0.85rem' }} />
+                        <Typography variant="caption" color="text.secondary">Repeat</Typography>
+                      </Stack>
+                      {editMode ? (
+                        <Stack spacing={1}>
+                          <TextField
+                            select
+                            size="small"
+                            fullWidth
+                            value={editForm.recurrence}
+                            onChange={(e) => setEditForm((f) => ({ ...f, recurrence: e.target.value }))}
+                          >
+                            <MenuItem value="">None</MenuItem>
+                            <MenuItem value="daily">Daily</MenuItem>
+                            <MenuItem value="weekly">Weekly</MenuItem>
+                            <MenuItem value="biweekly">Bi-Weekly</MenuItem>
+                            <MenuItem value="monthly">Monthly</MenuItem>
+                          </TextField>
+                          {editForm.recurrence && (
+                            <TextField
+                              type="date"
+                              label="Repeat until"
+                              size="small"
+                              fullWidth
+                              value={editForm.recurrence_end}
+                              onChange={(e) => setEditForm((f) => ({ ...f, recurrence_end: e.target.value }))}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          )}
+                        </Stack>
+                      ) : task.recurrence ? (
+                        <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" sx={{ gap: 0.5 }}>
+                          <Chip
+                            icon={<Repeat fontSize="small" />}
+                            label={task.recurrence.charAt(0).toUpperCase() + task.recurrence.slice(1)}
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem', height: 22 }}
+                          />
+                          {task.recurrence_end && (
+                            <Typography variant="caption" color="text.secondary">
+                              until {new Date(task.recurrence_end).toLocaleDateString()}
+                            </Typography>
+                          )}
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" color="text.disabled">None</Typography>
+                      )}
+                    </Box>
+
+                    {/* Tags */}
+                    <Box>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between">
+                        <Typography variant="caption" color="text.secondary">Tags</Typography>
+                        <Tooltip title="Add tag">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => setTagMenuAnchor(e.currentTarget)}
+                          >
+                            <Add fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 0.5, gap: 0.5 }}>
+                        {task.tags_details && task.tags_details.length > 0 ? (
+                          task.tags_details.map((tag) => (
+                            <Chip
+                              key={tag.id}
+                              label={tag.name}
+                              size="small"
+                              onDelete={async () => {
+                                try {
+                                  await removeTagFromTask({ taskId: taskId!, tagId: tag.id }).unwrap();
+                                } catch {
+                                  enqueueSnackbar('Failed to remove tag', { variant: 'error' });
+                                }
+                              }}
+                              sx={{
+                                bgcolor: tag.color,
+                                color: 'white',
+                                '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.7)', '&:hover': { color: 'white' } },
+                                fontSize: '0.65rem',
+                                height: 20,
+                              }}
+                            />
+                          ))
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">None</Typography>
+                        )}
+                      </Stack>
+                      <Menu
+                        anchorEl={tagMenuAnchor}
+                        open={Boolean(tagMenuAnchor)}
+                        onClose={() => { setTagMenuAnchor(null); setNewTagName(''); setNewTagColor('#6B7280'); }}
+                        PaperProps={{ sx: { minWidth: 220, p: 1 } }}
+                      >
+                        {workspaceTags && workspaceTags
+                          .filter((t) => !task.tags_details?.find((td) => td.id === t.id))
+                          .map((tag) => (
+                            <MenuItem
+                              key={tag.id}
+                              dense
+                              onClick={async () => {
+                                setTagMenuAnchor(null);
+                                try {
+                                  await addTagToTask({ taskId: taskId!, tagId: tag.id }).unwrap();
+                                } catch {
+                                  enqueueSnackbar('Failed to add tag', { variant: 'error' });
+                                }
+                              }}
+                            >
+                              <Box
+                                sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color, mr: 1, flexShrink: 0 }}
+                              />
+                              {tag.name}
+                            </MenuItem>
+                          ))}
+                        <Divider sx={{ my: 0.5 }} />
+                        <Box sx={{ px: 1, pt: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary">Create new tag</Typography>
+                          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+                            <TextField
+                              size="small"
+                              placeholder="Tag name"
+                              value={newTagName}
+                              onChange={(e) => setNewTagName(e.target.value)}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              sx={{ flex: 1, '& .MuiInputBase-input': { py: 0.5 } }}
+                            />
+                            <TextField
+                              type="color"
+                              size="small"
+                              value={newTagColor}
+                              onChange={(e) => setNewTagColor(e.target.value)}
+                              sx={{ width: 48, '& .MuiInputBase-input': { py: 0.5, px: 0.5 } }}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          </Stack>
+                          <Button
+                            size="small"
+                            fullWidth
+                            sx={{ mt: 0.5 }}
+                            disabled={!newTagName.trim() || !workspaceId}
+                            onClick={async () => {
+                              if (!newTagName.trim() || !workspaceId) return;
+                              setTagMenuAnchor(null);
+                              try {
+                                const tag = await createTag({ workspace: workspaceId, name: newTagName.trim(), color: newTagColor }).unwrap();
+                                await addTagToTask({ taskId: taskId!, tagId: tag.id }).unwrap();
+                                setNewTagName('');
+                                setNewTagColor('#6B7280');
+                              } catch {
+                                enqueueSnackbar('Failed to create tag', { variant: 'error' });
+                              }
+                            }}
+                          >
+                            Create &amp; Add
+                          </Button>
+                        </Box>
+                      </Menu>
+                    </Box>
+
+                    {/* Watchers */}
+                    <Box>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between">
+                        <Typography variant="caption" color="text.secondary">
+                          Watchers {task.watcher_count != null && task.watcher_count > 0 ? `(${task.watcher_count})` : ''}
+                        </Typography>
+                        <Tooltip title={isWatching ? 'Unwatch' : 'Watch'}>
+                          <IconButton
+                            size="small"
+                            onClick={handleToggleWatch}
+                            disabled={watching || unwatching}
+                            color={isWatching ? 'primary' : 'default'}
+                          >
+                            {isWatching ? <Visibility fontSize="small" /> : <VisibilityOff fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                      {task.watchers_details && task.watchers_details.length > 0 ? (
+                        <AvatarGroup
+                          max={5}
+                          sx={{ mt: 0.5, justifyContent: 'flex-start', '& .MuiAvatar-root': { width: 26, height: 26, fontSize: '0.65rem' } }}
+                        >
+                          {task.watchers_details.map((w) => (
+                            <Tooltip key={w.id} title={w.first_name && w.last_name ? `${w.first_name} ${w.last_name}` : w.username}>
+                              <Avatar sx={{ bgcolor: 'secondary.light' }}>
+                                {w.username[0].toUpperCase()}
+                              </Avatar>
+                            </Tooltip>
+                          ))}
+                        </AvatarGroup>
+                      ) : (
+                        <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+                          No watchers yet
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {/* Custom Fields */}
+                    {customFieldValues && customFieldValues.length > 0 && (
+                      <>
+                        <Divider />
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Custom Fields
+                          </Typography>
+                          <Stack spacing={1.5} sx={{ mt: 1 }}>
+                            {customFieldValues.map((fv) => {
+                              const val = getCfValue(fv);
+                              return (
+                                <Box key={fv.field}>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {fv.field_name}{fv.required && ' *'}
+                                  </Typography>
+                                  {fv.field_type === 'checkbox' ? (
+                                    <Box sx={{ mt: 0.25 }}>
+                                      <Checkbox
+                                        size="small"
+                                        checked={Boolean(val)}
+                                        onChange={(e) => {
+                                          handleCfChange(fv.field, e.target.checked);
+                                          handleCfSave(fv.field, e.target.checked);
+                                        }}
+                                        sx={{ p: 0 }}
+                                      />
+                                    </Box>
+                                  ) : fv.field_type === 'dropdown' ? (
+                                    <TextField
+                                      select
+                                      size="small"
+                                      fullWidth
+                                      value={String(val ?? '')}
+                                      onChange={(e) => handleCfChange(fv.field, e.target.value)}
+                                      onBlur={() => handleCfSave(fv.field, val)}
+                                      sx={{ mt: 0.25 }}
+                                    >
+                                      <MenuItem value="">—</MenuItem>
+                                      {fv.field_options.map((opt) => (
+                                        <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                                      ))}
+                                    </TextField>
+                                  ) : (
+                                    <TextField
+                                      size="small"
+                                      fullWidth
+                                      type={
+                                        fv.field_type === 'number' ? 'number' :
+                                        fv.field_type === 'date' ? 'date' :
+                                        fv.field_type === 'url' ? 'url' : 'text'
+                                      }
+                                      value={String(val ?? '')}
+                                      onChange={(e) => handleCfChange(fv.field, e.target.value)}
+                                      onBlur={() => handleCfSave(fv.field, val)}
+                                      InputLabelProps={fv.field_type === 'date' ? { shrink: true } : undefined}
+                                      sx={{ mt: 0.25 }}
+                                    />
+                                  )}
+                                </Box>
+                              );
+                            })}
+                          </Stack>
+                        </Box>
+                      </>
+                    )}
+
                     {/* Sprint */}
                     {task.sprint_details && (
                       <Box>
@@ -693,6 +1576,104 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
                           ? new Date(task.created_at).toLocaleString()
                           : 'Unknown'}
                       </Typography>
+                    </Box>
+
+                    <Divider />
+
+                    {/* Time Tracking */}
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                        Time Tracking
+                      </Typography>
+
+                      {/* Progress bar: actual / estimated */}
+                      {task.estimated_hours != null && (
+                        <Box sx={{ mt: 1 }}>
+                          <Stack direction="row" justifyContent="space-between">
+                            <Typography variant="caption" color="text.secondary">
+                              {Number(task.actual_hours ?? 0).toFixed(1)}h logged
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {Number(task.estimated_hours).toFixed(1)}h estimated
+                            </Typography>
+                          </Stack>
+                          <LinearProgress
+                            variant="determinate"
+                            value={Math.min(
+                              100,
+                              (Number(task.actual_hours ?? 0) / Number(task.estimated_hours)) * 100
+                            )}
+                            color={
+                              Number(task.actual_hours ?? 0) > Number(task.estimated_hours)
+                                ? 'error'
+                                : 'primary'
+                            }
+                            sx={{ mt: 0.5, borderRadius: 1, height: 6 }}
+                          />
+                        </Box>
+                      )}
+
+                      {task.estimated_hours == null && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          {Number(task.actual_hours ?? 0).toFixed(1)}h logged
+                        </Typography>
+                      )}
+
+                      {/* Log time input */}
+                      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                        <TextField
+                          size="small"
+                          type="number"
+                          placeholder="Hours"
+                          value={logHours}
+                          onChange={(e) => setLogHours(e.target.value)}
+                          inputProps={{ min: 0.1, step: 0.25 }}
+                          sx={{ width: 90 }}
+                        />
+                        <TextField
+                          size="small"
+                          placeholder="Note (optional)"
+                          value={logNote}
+                          onChange={(e) => setLogNote(e.target.value)}
+                          sx={{ flex: 1 }}
+                        />
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={handleLogTime}
+                          disabled={loggingTime || !logHours || Number(logHours) <= 0}
+                        >
+                          Log
+                        </Button>
+                      </Stack>
+
+                      {/* Recent logs */}
+                      {timeLogs && timeLogs.length > 0 && (
+                        <Stack spacing={0.5} sx={{ mt: 1, maxHeight: 120, overflow: 'auto' }}>
+                          {timeLogs.slice(0, 5).map((log) => (
+                            <Stack
+                              key={log.id}
+                              direction="row"
+                              justifyContent="space-between"
+                              alignItems="center"
+                              sx={{
+                                px: 1,
+                                py: 0.5,
+                                borderRadius: 1,
+                                bgcolor: (theme) => alpha(theme.palette.grey[500], 0.07),
+                              }}
+                            >
+                              <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>
+                                {log.user_username}
+                                {log.note ? ` — ${log.note}` : ''}
+                              </Typography>
+                              <Typography variant="caption" fontWeight={600} sx={{ ml: 1, whiteSpace: 'nowrap' }}>
+                                {Number(log.hours).toFixed(1)}h · {log.date}
+                              </Typography>
+                            </Stack>
+                          ))}
+                        </Stack>
+                      )}
                     </Box>
                   </Stack>
                 </Grid>
@@ -725,6 +1706,14 @@ export const TaskDetailModal = ({ taskId, open, onClose, onDeleted }: TaskDetail
           <Delete fontSize="small" sx={{ mr: 1 }} /> Delete task
         </MenuItem>
       </Menu>
+
+      {/* Subtask modal (recursive) */}
+      <TaskDetailModal
+        taskId={selectedSubtaskId}
+        open={Boolean(selectedSubtaskId)}
+        onClose={() => setSelectedSubtaskId(null)}
+        onDeleted={() => setSelectedSubtaskId(null)}
+      />
     </Dialog>
   );
 };

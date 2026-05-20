@@ -14,6 +14,7 @@ export interface MilestoneSprint {
   description?: string;
   milestone: number;
   status: string;
+  health_status?: 'on_track' | 'at_risk' | 'behind' | 'critical' | null;
   start_date?: string;
   end_date?: string;
   completion_percentage?: number;
@@ -28,6 +29,7 @@ export interface Milestone {
   project: number;
   project_name?: string;
   status: 'planning' | 'active' | 'completed' | 'cancelled';
+  health_status?: 'on_track' | 'at_risk' | 'behind' | 'critical' | null;
   start_date?: string;
   end_date?: string;
   sprints?: MilestoneSprint[];
@@ -43,7 +45,9 @@ export interface MilestoneDetail extends Milestone {
   sprints: {
     id: number;
     name: string;
+    milestone: number;
     status: string;
+    health_status?: 'on_track' | 'at_risk' | 'behind' | 'critical' | null;
     start_date?: string;
     end_date?: string;
     tasks_count?: number;

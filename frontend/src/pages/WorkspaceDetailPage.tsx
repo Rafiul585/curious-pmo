@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import { selectUser } from '../store/slices/authSlice';
 import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -46,7 +48,12 @@ import {
   AdminPanelSettings,
   Search,
   CheckCircle,
+  ContentCopy,
+  VisibilityOff,
+  GitHub as GitHubIcon,
+  OpenInNew,
 } from '@mui/icons-material';
+import { Checkbox, FormControlLabel } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import {
   useGetWorkspaceQuery,
@@ -56,10 +63,23 @@ import {
   useAddWorkspaceMemberMutation,
   useRemoveWorkspaceMemberMutation,
   useGetWorkspaceProjectsQuery,
+  useGetMyMembershipsQuery,
 } from '../api/workspaceApi';
 import { useListUsersQuery } from '../api/userApi';
 import { useCreateProjectMutation } from '../api/projectApi';
 import { ActivityLogList } from '../components/activity/ActivityLogList';
+import {
+  useListTemplatesQuery,
+  useCreateTemplateMutation,
+  useDeleteTemplateMutation,
+} from '../api/templateApi';
+import type { TaskTemplate } from '../api/templateApi';
+import {
+  useListGitIntegrationsQuery,
+  useCreateGitIntegrationMutation,
+  useDeleteGitIntegrationMutation,
+} from '../api/gitApi';
+import type { CreateGitIntegrationData } from '../api/gitApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -92,9 +112,14 @@ export const WorkspaceDetailPage = () => {
   const [projectForm, setProjectForm] = useState({ name: '', description: '', visibility: 'private', start_date: '', end_date: '' });
   const [settingsForm, setSettingsForm] = useState({ name: '', description: '' });
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [inviteAsGuest, setInviteAsGuest] = useState(false);
+
+  const currentUser = useSelector(selectUser);
+  const { data: memberships } = useGetMyMembershipsQuery();
+  const isCurrentUserGuest = memberships?.find((m) => m.workspace_id === workspaceId)?.is_guest ?? false;
 
   const { data: workspace, isLoading, error } = useGetWorkspaceQuery(workspaceId);
-  const { data: members } = useGetWorkspaceMembersQuery(workspaceId);
+  const { data: members } = useGetWorkspaceMembersQuery(workspaceId, { skip: isCurrentUserGuest });
   const { data: projects } = useGetWorkspaceProjectsQuery(workspaceId);
   const { data: allUsers } = useListUsersQuery();
 
@@ -103,6 +128,38 @@ export const WorkspaceDetailPage = () => {
   const [addMember] = useAddWorkspaceMemberMutation();
   const [removeMember] = useRemoveWorkspaceMemberMutation();
   const [createProject, { isLoading: creatingProject }] = useCreateProjectMutation();
+
+  const { data: templates } = useListTemplatesQuery(workspaceId);
+  const [createTemplate] = useCreateTemplateMutation();
+  const [deleteTemplate] = useDeleteTemplateMutation();
+  const [showAddTemplate, setShowAddTemplate] = useState(false);
+  const blankTemplateForm = () => ({
+    name: '',
+    description: '',
+    default_priority: 'Medium' as TaskTemplate['default_priority'],
+    checklist_items_text: '',
+  });
+  const [templateForm, setTemplateForm] = useState(blankTemplateForm);
+
+  // Git integrations
+  const { data: gitIntegrations } = useListGitIntegrationsQuery(workspaceId, { skip: isCurrentUserGuest });
+  const [createGitIntegration] = useCreateGitIntegrationMutation();
+  const [deleteGitIntegration] = useDeleteGitIntegrationMutation();
+  const [showAddIntegration, setShowAddIntegration] = useState(false);
+  const blankIntegrationForm = (): CreateGitIntegrationData => ({
+    workspace: workspaceId,
+    provider: 'github',
+    repo_url: '',
+    webhook_secret: '',
+  });
+  const [integrationForm, setIntegrationForm] = useState<CreateGitIntegrationData>(blankIntegrationForm);
+
+  // Reset to Projects tab if current tab is hidden for guests
+  useEffect(() => {
+    if (isCurrentUserGuest && (tabValue === 1 || tabValue === 3)) {
+      setTabValue(0);
+    }
+  }, [isCurrentUserGuest, tabValue]);
 
   // Initialize settings form when workspace loads
   useEffect(() => {
@@ -154,11 +211,12 @@ export const WorkspaceDetailPage = () => {
     }
   };
 
-  const handleAddMember = async (userId: number, isAdmin: boolean = false) => {
+  const handleAddMember = async (userId: number, isAdmin: boolean = false, isGuest: boolean = false) => {
     try {
-      await addMember({ workspaceId, userId, isAdmin }).unwrap();
-      enqueueSnackbar('Member added successfully', { variant: 'success' });
+      await addMember({ workspaceId, userId, isAdmin, isGuest }).unwrap();
+      enqueueSnackbar(isGuest ? 'Guest added successfully' : 'Member added successfully', { variant: 'success' });
       setMemberDialogOpen(false);
+      setInviteAsGuest(false);
     } catch {
       enqueueSnackbar('Failed to add member', { variant: 'error' });
     }
@@ -293,10 +351,18 @@ export const WorkspaceDetailPage = () => {
       {/* Tabs */}
       <Paper sx={{ borderRadius: 2 }}>
         <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
-          <Tab icon={<Folder />} iconPosition="start" label={`Projects (${projects?.length || 0})`} />
-          <Tab icon={<People />} iconPosition="start" label={`Members (${members?.length || 0})`} />
-          <Tab icon={<History />} iconPosition="start" label="Activity" />
-          <Tab icon={<Settings />} iconPosition="start" label="Settings" />
+          <Tab value={0} icon={<Folder />} iconPosition="start" label={`Projects (${projects?.length || 0})`} />
+          {!isCurrentUserGuest && (
+            <Tab value={1} icon={<People />} iconPosition="start" label={`Members (${members?.length || 0})`} />
+          )}
+          <Tab value={2} icon={<History />} iconPosition="start" label="Activity" />
+          {!isCurrentUserGuest && (
+            <Tab value={3} icon={<Settings />} iconPosition="start" label="Settings" />
+          )}
+          <Tab value={4} icon={<ContentCopy />} iconPosition="start" label={`Templates (${templates?.length || 0})`} />
+          {!isCurrentUserGuest && (
+            <Tab value={5} icon={<GitHubIcon />} iconPosition="start" label={`Integrations (${gitIntegrations?.length || 0})`} />
+          )}
         </Tabs>
 
         {/* Projects Tab */}
@@ -409,6 +475,16 @@ export const WorkspaceDetailPage = () => {
                                   label="Admin"
                                   size="small"
                                   color="secondary"
+                                  sx={{ height: 20 }}
+                                />
+                              )}
+                            {member.is_guest && (
+                                <Chip
+                                  icon={<VisibilityOff sx={{ fontSize: 14 }} />}
+                                  label="Guest"
+                                  size="small"
+                                  color="warning"
+                                  variant="outlined"
                                   sx={{ height: 20 }}
                                 />
                               )}
@@ -538,6 +614,306 @@ export const WorkspaceDetailPage = () => {
             </Grid>
           </Box>
         </TabPanel>
+
+        {/* ── Templates Tab ── */}
+        <TabPanel value={tabValue} index={4}>
+          <Box sx={{ px: 3 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="h6" fontWeight={600}>Task Templates</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Reusable task blueprints with pre-filled checklists, priority, and description.
+                </Typography>
+              </Box>
+              <Button startIcon={<Add />} variant="contained" onClick={() => setShowAddTemplate(true)}>
+                New Template
+              </Button>
+            </Stack>
+
+            {templates && templates.length > 0 ? (
+              <Stack spacing={1.5} sx={{ mb: 3 }}>
+                {templates.map((tpl) => (
+                  <Paper key={tpl.id} variant="outlined" sx={{ px: 2, py: 1.5 }}>
+                    <Stack direction="row" alignItems="flex-start" spacing={2}>
+                      <ContentCopy color="action" sx={{ mt: 0.5 }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                          <Typography variant="subtitle2" fontWeight={600}>{tpl.name}</Typography>
+                          <Chip label={tpl.default_priority} size="small" variant="outlined"
+                            color={tpl.default_priority === 'Critical' ? 'error' : tpl.default_priority === 'High' ? 'warning' : tpl.default_priority === 'Low' ? 'default' : 'info'}
+                          />
+                          {tpl.checklist_items.length > 0 && (
+                            <Chip label={`${tpl.checklist_items.length} checklist items`} size="small" variant="outlined" />
+                          )}
+                        </Stack>
+                        {tpl.description && (
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{tpl.description}</Typography>
+                        )}
+                        {tpl.checklist_items.length > 0 && (
+                          <Stack spacing={0.25} sx={{ mt: 0.75 }}>
+                            {tpl.checklist_items.slice(0, 3).map((item, i) => (
+                              <Stack key={i} direction="row" alignItems="center" spacing={0.5}>
+                                <CheckCircle sx={{ fontSize: 12, color: 'text.disabled' }} />
+                                <Typography variant="caption" color="text.secondary">{item.text}</Typography>
+                              </Stack>
+                            ))}
+                            {tpl.checklist_items.length > 3 && (
+                              <Typography variant="caption" color="text.disabled">
+                                +{tpl.checklist_items.length - 3} more…
+                              </Typography>
+                            )}
+                          </Stack>
+                        )}
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={async () => {
+                          try {
+                            await deleteTemplate({ id: tpl.id, workspaceId }).unwrap();
+                            enqueueSnackbar('Template deleted', { variant: 'success' });
+                          } catch {
+                            enqueueSnackbar('Failed to delete template', { variant: 'error' });
+                          }
+                        }}
+                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : !showAddTemplate ? (
+              <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', mb: 3 }}>
+                <ContentCopy sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+                <Typography variant="body2" color="text.secondary">
+                  No templates yet. Create one to speed up task creation.
+                </Typography>
+              </Paper>
+            ) : null}
+
+            {showAddTemplate && (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>New Template</Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Template name"
+                    size="small"
+                    fullWidth
+                    value={templateForm.name}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+                    autoFocus
+                  />
+                  <TextField
+                    label="Description (optional)"
+                    size="small"
+                    fullWidth
+                    multiline
+                    rows={2}
+                    value={templateForm.description}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))}
+                  />
+                  <TextField
+                    label="Default priority"
+                    select
+                    size="small"
+                    fullWidth
+                    value={templateForm.default_priority}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, default_priority: e.target.value as TaskTemplate['default_priority'] }))}
+                  >
+                    <MenuItem value="Low">Low</MenuItem>
+                    <MenuItem value="Medium">Medium</MenuItem>
+                    <MenuItem value="High">High</MenuItem>
+                    <MenuItem value="Critical">Critical</MenuItem>
+                  </TextField>
+                  <TextField
+                    label="Checklist items (one per line)"
+                    size="small"
+                    fullWidth
+                    multiline
+                    rows={4}
+                    value={templateForm.checklist_items_text}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, checklist_items_text: e.target.value }))}
+                    placeholder="Write unit tests&#10;Update documentation&#10;Request review"
+                    helperText="Each line becomes a checklist item"
+                  />
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button size="small" onClick={() => { setShowAddTemplate(false); setTemplateForm(blankTemplateForm()); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!templateForm.name.trim()}
+                      onClick={async () => {
+                        const items = templateForm.checklist_items_text
+                          .split('\n')
+                          .map((l) => l.trim())
+                          .filter(Boolean)
+                          .map((text) => ({ text, is_checked: false }));
+                        try {
+                          await createTemplate({
+                            workspace: workspaceId,
+                            name: templateForm.name.trim(),
+                            description: templateForm.description,
+                            default_priority: templateForm.default_priority,
+                            default_tags: [],
+                            checklist_items: items,
+                            custom_field_defaults: {},
+                          }).unwrap();
+                          enqueueSnackbar('Template created', { variant: 'success' });
+                          setShowAddTemplate(false);
+                          setTemplateForm(blankTemplateForm());
+                        } catch {
+                          enqueueSnackbar('Failed to create template', { variant: 'error' });
+                        }
+                      }}
+                    >
+                      Create Template
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            )}
+          </Box>
+        </TabPanel>
+
+        {/* ── Integrations Tab ── */}
+        <TabPanel value={tabValue} index={5}>
+          <Box sx={{ px: 3 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="h6" fontWeight={600}>Git Integrations</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Connect GitHub or GitLab repos. Mention tasks as <code>[CUR-123]</code> in commits/PRs to auto-link them.
+                </Typography>
+              </Box>
+              <Button startIcon={<Add />} variant="contained" onClick={() => setShowAddIntegration(true)}>
+                Add Integration
+              </Button>
+            </Stack>
+
+            {gitIntegrations && gitIntegrations.length > 0 ? (
+              <Stack spacing={1.5} sx={{ mb: 3 }}>
+                {gitIntegrations.map((integration) => (
+                  <Paper key={integration.id} variant="outlined" sx={{ px: 2, py: 1.5 }}>
+                    <Stack direction="row" alignItems="flex-start" spacing={2}>
+                      <GitHubIcon color="action" sx={{ mt: 0.5 }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                          <Chip
+                            label={integration.provider === 'github' ? 'GitHub' : 'GitLab'}
+                            size="small"
+                            color={integration.provider === 'github' ? 'default' : 'warning'}
+                          />
+                          <Link href={integration.repo_url} target="_blank" rel="noopener" variant="body2" fontWeight={600}
+                            sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            {integration.repo_url}
+                            <OpenInNew sx={{ fontSize: 14 }} />
+                          </Link>
+                        </Stack>
+                        <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.75 }}>
+                          <Typography variant="caption" color="text.secondary">Webhook URL:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                            {integration.webhook_url}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => { navigator.clipboard.writeText(integration.webhook_url); enqueueSnackbar('Webhook URL copied', { variant: 'success' }); }}
+                            sx={{ p: 0.25 }}
+                          >
+                            <ContentCopy sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Stack>
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={async () => {
+                          try {
+                            await deleteGitIntegration({ id: integration.id, workspaceId }).unwrap();
+                            enqueueSnackbar('Integration removed', { variant: 'success' });
+                          } catch {
+                            enqueueSnackbar('Failed to remove integration', { variant: 'error' });
+                          }
+                        }}
+                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : !showAddIntegration ? (
+              <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', mb: 3 }}>
+                <GitHubIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+                <Typography variant="body2" color="text.secondary">
+                  No integrations yet. Connect a repo to link commits and PRs to tasks.
+                </Typography>
+              </Paper>
+            ) : null}
+
+            {showAddIntegration && (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>Add Integration</Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Provider"
+                    select
+                    size="small"
+                    fullWidth
+                    value={integrationForm.provider}
+                    onChange={(e) => setIntegrationForm((f) => ({ ...f, provider: e.target.value as 'github' | 'gitlab' }))}
+                  >
+                    <MenuItem value="github">GitHub</MenuItem>
+                    <MenuItem value="gitlab">GitLab</MenuItem>
+                  </TextField>
+                  <TextField
+                    label="Repository URL"
+                    size="small"
+                    fullWidth
+                    placeholder="https://github.com/org/repo"
+                    value={integrationForm.repo_url}
+                    onChange={(e) => setIntegrationForm((f) => ({ ...f, repo_url: e.target.value }))}
+                    autoFocus
+                  />
+                  <TextField
+                    label="Webhook Secret (optional)"
+                    size="small"
+                    fullWidth
+                    type="password"
+                    placeholder="Leave blank to skip signature verification"
+                    value={integrationForm.webhook_secret || ''}
+                    onChange={(e) => setIntegrationForm((f) => ({ ...f, webhook_secret: e.target.value }))}
+                    helperText="Set a secret in GitHub webhook settings to secure this endpoint"
+                  />
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button size="small" onClick={() => { setShowAddIntegration(false); setIntegrationForm(blankIntegrationForm()); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!integrationForm.repo_url.trim()}
+                      onClick={async () => {
+                        try {
+                          await createGitIntegration(integrationForm).unwrap();
+                          enqueueSnackbar('Integration added', { variant: 'success' });
+                          setShowAddIntegration(false);
+                          setIntegrationForm(blankIntegrationForm());
+                        } catch {
+                          enqueueSnackbar('Failed to add integration', { variant: 'error' });
+                        }
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            )}
+          </Box>
+        </TabPanel>
       </Paper>
 
       {/* Edit Dialog */}
@@ -587,7 +963,7 @@ export const WorkspaceDetailPage = () => {
       </Dialog>
 
       {/* Add Member Dialog */}
-      <Dialog open={memberDialogOpen} onClose={() => { setMemberDialogOpen(false); setMemberSearchQuery(''); }} fullWidth maxWidth="sm">
+      <Dialog open={memberDialogOpen} onClose={() => { setMemberDialogOpen(false); setMemberSearchQuery(''); setInviteAsGuest(false); }} fullWidth maxWidth="sm">
         <DialogTitle>
           <Stack direction="row" alignItems="center" spacing={1}>
             <PersonAdd color="primary" />
@@ -595,9 +971,31 @@ export const WorkspaceDetailPage = () => {
           </Stack>
         </DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Search and select users to add to this workspace.
-          </Typography>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Search and select users to add to this workspace.
+            </Typography>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  checked={inviteAsGuest}
+                  onChange={(e) => setInviteAsGuest(e.target.checked)}
+                />
+              }
+              label={
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <VisibilityOff sx={{ fontSize: 16, color: inviteAsGuest ? 'warning.main' : 'text.disabled' }} />
+                  <Typography variant="body2">Invite as Guest</Typography>
+                </Stack>
+              }
+            />
+          </Stack>
+          {inviteAsGuest && (
+            <Alert severity="warning" sx={{ mb: 2 }} icon={<VisibilityOff fontSize="small" />}>
+              Guests can only see projects you explicitly grant them access to.
+            </Alert>
+          )}
 
           {/* Search Field */}
           <TextField
@@ -654,22 +1052,36 @@ export const WorkspaceDetailPage = () => {
                           </Box>
                         </Stack>
                         <Stack direction="row" spacing={1}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => handleAddMember(user.id, false)}
-                          >
-                            Add Member
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            color="secondary"
-                            startIcon={<AdminPanelSettings sx={{ fontSize: 16 }} />}
-                            onClick={() => handleAddMember(user.id, true)}
-                          >
-                            Add Admin
-                          </Button>
+                          {inviteAsGuest ? (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="warning"
+                              startIcon={<VisibilityOff sx={{ fontSize: 16 }} />}
+                              onClick={() => handleAddMember(user.id, false, true)}
+                            >
+                              Add Guest
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => handleAddMember(user.id, false)}
+                              >
+                                Add Member
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                color="secondary"
+                                startIcon={<AdminPanelSettings sx={{ fontSize: 16 }} />}
+                                onClick={() => handleAddMember(user.id, true)}
+                              >
+                                Add Admin
+                              </Button>
+                            </>
+                          )}
                         </Stack>
                       </Stack>
                     </Box>
@@ -696,7 +1108,7 @@ export const WorkspaceDetailPage = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setMemberDialogOpen(false); setMemberSearchQuery(''); }}>Close</Button>
+          <Button onClick={() => { setMemberDialogOpen(false); setMemberSearchQuery(''); setInviteAsGuest(false); }}>Close</Button>
         </DialogActions>
       </Dialog>
 

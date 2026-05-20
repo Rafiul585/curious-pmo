@@ -36,21 +36,22 @@ class Command(BaseCommand):
 
         total_notifications = 0
 
-        # Check Tasks
-        tasks_due = Task.objects.filter(
-            due_date=target_date,
-            assignee__isnull=False
-        ).exclude(status='Done')
+        # Check Tasks — notify all assignees (M2M) plus legacy assignee FK
+        tasks_due = Task.objects.filter(due_date=target_date).exclude(status='Done').prefetch_related('assignees')
 
         for task in tasks_due:
-            if not self._notification_exists(task.assignee, task):
-                NotificationService.notify_deadline(
-                    recipient=task.assignee,
-                    target=task,
-                    target_type='task',
-                    days_until=days_ahead
-                )
-                total_notifications += 1
+            recipients = list(task.assignees.all())
+            if task.assignee and task.assignee.id not in {r.id for r in recipients}:
+                recipients.append(task.assignee)
+            for recipient in recipients:
+                if not self._notification_exists(recipient, task):
+                    NotificationService.notify_deadline(
+                        recipient=recipient,
+                        target=task,
+                        target_type='task',
+                        days_until=days_ahead,
+                    )
+                    total_notifications += 1
 
         self.stdout.write(f'  Tasks: {tasks_due.count()} due, {total_notifications} new notifications')
 

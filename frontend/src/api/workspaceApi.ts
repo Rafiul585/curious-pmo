@@ -7,6 +7,13 @@ export interface WorkspaceOwner {
   email?: string;
 }
 
+export interface MyMembership {
+  workspace_id: number;
+  workspace_name: string;
+  is_admin: boolean;
+  is_guest: boolean;
+}
+
 export interface WorkspaceMember {
   id: number;
   user: {
@@ -17,6 +24,7 @@ export interface WorkspaceMember {
     last_name?: string;
   };
   is_admin: boolean;
+  is_guest: boolean;
   joined_at: string;
 }
 
@@ -132,12 +140,12 @@ export const workspaceApi = api.injectEndpoints({
     // Add member to workspace
     addWorkspaceMember: build.mutation<
       { status: string; created: boolean },
-      { workspaceId: number; userId: number; isAdmin?: boolean }
+      { workspaceId: number; userId: number; isAdmin?: boolean; isGuest?: boolean }
     >({
-      query: ({ workspaceId, userId, isAdmin }) => ({
+      query: ({ workspaceId, userId, isAdmin, isGuest }) => ({
         url: `/workspaces/${workspaceId}/add_member/`,
         method: 'POST',
-        body: { user_id: userId, is_admin: isAdmin || false },
+        body: { user_id: userId, is_admin: isAdmin || false, is_guest: isGuest || false },
       }),
       invalidatesTags: (_result, _error, { workspaceId }) => [{ type: 'Workspace', id: workspaceId }],
     }),
@@ -153,7 +161,7 @@ export const workspaceApi = api.injectEndpoints({
     }),
 
     // Get workspace projects
-    getWorkspaceProjects: build.query<{ id: number; name: string; status: string }[], number>({
+    getWorkspaceProjects: build.query<{ id: number; name: string; status: string; start_date?: string; end_date?: string }[], number>({
       query: (id) => ({ url: `/workspaces/${id}/workspace_projects/` }),
       providesTags: (_result, _error, id) => [{ type: 'Workspace', id }, 'Project'],
     }),
@@ -190,6 +198,12 @@ export const workspaceApi = api.injectEndpoints({
       providesTags: (_result, _error, id) => [{ type: 'Workspace', id }],
     }),
 
+    // Get my memberships (with is_guest flag)
+    getMyMemberships: build.query<MyMembership[], void>({
+      query: () => ({ url: '/workspaces/my_memberships/' }),
+      providesTags: ['Workspace'],
+    }),
+
     // Get workspace activity logs
     getWorkspaceActivityLogs: build.query<
       { workspace_id: number; workspace_name: string; total_logs: number; activity_logs: ActivityLog[] },
@@ -220,5 +234,6 @@ export const {
   useGrantProjectAccessMutation,
   useRevokeProjectAccessMutation,
   useGetMemberProjectAccessQuery,
+  useGetMyMembershipsQuery,
   useGetWorkspaceActivityLogsQuery,
 } = workspaceApi;

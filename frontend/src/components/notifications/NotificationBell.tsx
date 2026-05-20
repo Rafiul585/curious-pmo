@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSocket } from '../../hooks/useSocket';
 import {
   Avatar,
   Badge,
@@ -61,9 +62,9 @@ export const NotificationBell = () => {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
-  const { data: unreadCount, isLoading: loadingCount } = useGetUnreadCountQuery(undefined, {
-    pollingInterval: 30000, // Poll every 30 seconds
-  });
+  useSocket(); // maintains live WebSocket; invalidates Notification cache on new events
+
+  const { data: unreadCount, isLoading: loadingCount } = useGetUnreadCountQuery(undefined);
   const { data: notifications, isLoading: loadingNotifications } = useGetUnreadNotificationsQuery(
     undefined,
     { skip: !anchorEl }

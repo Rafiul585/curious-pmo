@@ -1,5 +1,6 @@
 import {
   Box,
+  Chip,
   Collapse,
   Drawer,
   List,
@@ -10,6 +11,8 @@ import {
   Divider,
   Typography,
   alpha,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -22,9 +25,14 @@ import {
   Person as PersonIcon,
   ExpandLess,
   ExpandMore,
+  People as PeopleIcon,
+  EmojiEvents as GoalsIcon,
+  VisibilityOff as GuestIcon,
+  HelpOutline as HelpIcon,
 } from '@mui/icons-material';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
+import { useGetMyMembershipsQuery } from '../../api/workspaceApi';
 
 interface NavItem {
   label: string;
@@ -53,17 +61,30 @@ const navItems: NavItemOrDivider[] = [
   { divider: true, label: 'VIEWS' },
   { label: 'Gantt Chart', to: '/gantt', icon: <BarChartIcon /> },
   { label: 'Kanban Board', to: '/kanban', icon: <ViewKanbanIcon /> },
+  { label: 'Workload', to: '/workload', icon: <PeopleIcon /> },
+  { label: 'Goals', to: '/goals', icon: <GoalsIcon /> },
   { divider: true, label: 'TOOLS' },
   { label: 'Search', to: '/search', icon: <SearchIcon /> },
   { divider: true },
   { label: 'My Profile', to: '/profile', icon: <PersonIcon /> },
+  { divider: true, label: 'SUPPORT' },
+  { label: 'Help & Guide', to: '/help', icon: <HelpIcon /> },
 ];
 
 const DRAWER_WIDTH = 240;
 
-export const NavSidebar = () => {
+interface NavSidebarProps {
+  mobileOpen: boolean;
+  onClose: () => void;
+}
+
+export const NavSidebar = ({ mobileOpen, onClose }: NavSidebarProps) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const { data: memberships } = useGetMyMembershipsQuery();
+  const isGuestOnly = memberships != null && memberships.length > 0 && memberships.every((m) => m.is_guest);
 
   const toggleMenu = (label: string) => {
     setOpenMenus((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -73,7 +94,10 @@ export const NavSidebar = () => {
 
   return (
     <Drawer
-      variant="permanent"
+      variant={isMobile ? 'temporary' : 'permanent'}
+      open={isMobile ? mobileOpen : true}
+      onClose={onClose}
+      ModalProps={{ keepMounted: true }}
       sx={{
         width: DRAWER_WIDTH,
         flexShrink: 0,
@@ -82,6 +106,9 @@ export const NavSidebar = () => {
           boxSizing: 'border-box',
           borderRight: 1,
           borderColor: 'divider',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
         },
       }}
     >
@@ -224,6 +251,16 @@ export const NavSidebar = () => {
                     color: active ? 'primary.main' : 'text.primary',
                   }}
                 />
+                {navItem.label === 'Workspaces' && isGuestOnly && (
+                  <Chip
+                    icon={<GuestIcon sx={{ fontSize: '12px !important' }} />}
+                    label="Guest"
+                    size="small"
+                    color="warning"
+                    variant="outlined"
+                    sx={{ height: 18, fontSize: 10, '& .MuiChip-label': { px: 0.5 } }}
+                  />
+                )}
               </ListItemButton>
             );
           })}

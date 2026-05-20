@@ -5,10 +5,14 @@ import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
+import { DocDetailPage } from './pages/DocDetailPage';
+import { HelpPage } from './pages/HelpPage';
 import { TasksPage } from './pages/TasksPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { GanttPage } from './pages/GanttPage';
 import { KanbanPage } from './pages/KanbanPage';
+import { WorkloadPage } from './pages/WorkloadPage';
+import { GoalsPage } from './pages/GoalsPage';
 import { SearchPage } from './pages/SearchPage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
 import { WorkspaceDetailPage } from './pages/WorkspaceDetailPage';
@@ -46,6 +50,7 @@ const App = () => (
       {/* Projects */}
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/:id" element={<ProjectDetailPage />} />
+      <Route path="/projects/:projectId/docs/:docId" element={<DocDetailPage />} />
 
       {/* Tasks */}
       <Route path="/tasks" element={<TasksPage />} />
@@ -53,6 +58,8 @@ const App = () => (
       {/* Views */}
       <Route path="/gantt" element={<GanttPage />} />
       <Route path="/kanban" element={<KanbanPage />} />
+      <Route path="/workload" element={<WorkloadPage />} />
+      <Route path="/goals" element={<GoalsPage />} />
 
       {/* Search */}
       <Route path="/search" element={<SearchPage />} />
@@ -63,6 +70,9 @@ const App = () => (
 
       {/* Notifications */}
       <Route path="/notifications" element={<NotificationsPage />} />
+
+      {/* Help */}
+      <Route path="/help" element={<HelpPage />} />
     </Route>
 
     {/* 404 */}

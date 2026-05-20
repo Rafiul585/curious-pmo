@@ -28,12 +28,26 @@ class Workspace(models.Model):
         """Check if user is the owner of this workspace"""
         return self.owner == user
 
+class Tag(models.Model):
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name='tags')
+    name = models.CharField(max_length=50)
+    color = models.CharField(max_length=7, default='#6B7280')
+
+    class Meta:
+        unique_together = ('workspace', 'name')
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class WorkspaceMember(models.Model):
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True)
     joined_at = models.DateTimeField(auto_now_add=True)
     is_admin = models.BooleanField(default=False)
+    is_guest = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('workspace', 'user')

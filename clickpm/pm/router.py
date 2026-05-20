@@ -3,8 +3,15 @@ from rest_framework.routers import DefaultRouter
 from pm.views.user_views import UserViewSet
 # from pm.views.user_views import UserViewSet, RegisterView, LoginView, LogoutView, RefreshTokenView, ChangePasswordView
 from pm.views.role_views import RoleViewSet
-from pm.views.project_views import ProjectViewSet, MilestoneViewSet, SprintViewSet
-from pm.views.task_views import TaskViewSet, TaskDependencyViewSet
+from pm.views.project_views import ProjectViewSet, MilestoneViewSet, SprintViewSet, ProjectStatusViewSet, CustomFieldDefinitionViewSet, AutomationRuleViewSet
+from pm.views.goal_views import GoalViewSet, GoalTargetViewSet
+from pm.views.template_views import TaskTemplateViewSet
+from pm.views.git_views import GitIntegrationViewSet, TaskGitLinkViewSet
+from pm.views.doc_views import DocViewSet
+from pm.views.import_views import ImportViewSet
+from pm.views.task_views import TaskViewSet, TaskDependencyViewSet, TimeLogViewSet
+from pm.views.checklist_views import ChecklistViewSet, ChecklistItemViewSet
+from pm.views.tag_views import TagViewSet
 from pm.views.comment_views import CommentViewSet
 from pm.views.attachment_views import AttachmentViewSet
 from pm.views.activity_views import ActivityLogViewSet
@@ -26,10 +33,24 @@ router.register(r'workspaces', WorkspaceViewSet, basename='workspace')
 router.register(r'projects', ProjectViewSet, basename='project')
 router.register(r'milestones', MilestoneViewSet, basename='milestone')
 router.register(r'sprints', SprintViewSet, basename='sprint')
+router.register(r'project-statuses', ProjectStatusViewSet, basename='project-status')
+router.register(r'custom-fields', CustomFieldDefinitionViewSet, basename='custom-field')
+router.register(r'automations', AutomationRuleViewSet, basename='automation')
+
+# Goals / OKRs
+router.register(r'goals', GoalViewSet, basename='goal')
+router.register(r'goal-targets', GoalTargetViewSet, basename='goal-target')
+
+# Task Templates
+router.register(r'task-templates', TaskTemplateViewSet, basename='task-template')
 
 # Tasks
 router.register(r'tasks', TaskViewSet, basename='task')
 router.register(r'task-dependencies', TaskDependencyViewSet, basename='task-dependency')
+router.register(r'time-logs', TimeLogViewSet, basename='time-log')
+router.register(r'checklists', ChecklistViewSet, basename='checklist')
+router.register(r'checklist-items', ChecklistItemViewSet, basename='checklist-item')
+router.register(r'tags', TagViewSet, basename='tag')
 
 # Notifications
 router.register(r'notifications', NotificationViewSet, basename='notification')
@@ -48,6 +69,16 @@ router.register(r'dashboard', DashboardViewSet, basename='dashboard')
 
 # Search
 router.register(r'search', SearchViewSet, basename='search')
+
+# Git Integrations
+router.register(r'git-integrations', GitIntegrationViewSet, basename='git-integration')
+router.register(r'task-git-links', TaskGitLinkViewSet, basename='task-git-link')
+
+# Docs / Wiki
+router.register(r'docs', DocViewSet, basename='doc')
+
+# CSV Import
+router.register(r'import', ImportViewSet, basename='import')
 
 
 urlpatterns = router.urls

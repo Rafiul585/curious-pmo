@@ -5,11 +5,19 @@ from pm.views.auth_views import (
     request_password_reset, confirm_password_reset, logout
 )
 from pm.views.api_root import api_root
+from pm.views.git_views import webhook_github
+from pm.views.user_views import calendar_ics
 from pm.router import urlpatterns as router_urls
 
 urlpatterns = [
     # API Root (public)
     path('', api_root, name='api-root'),
+
+    # Git webhooks (no JWT auth — verified by HMAC)
+    path('webhooks/github/<int:pk>/', webhook_github, name='webhook_github'),
+
+    # iCal feed (no JWT auth — token in query string)
+    path('users/calendar.ics', calendar_ics, name='calendar_ics'),
     
     # Authentication endpoints
     path('auth/register/', register, name='register'),

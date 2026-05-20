@@ -8,10 +8,15 @@ export interface KanbanTask {
   priority: string;
   start_date: string | null;
   due_date: string | null;
+  is_blocked?: boolean;
   assignee: {
     id: number;
     username: string;
   } | null;
+  assignees?: {
+    id: number;
+    username: string;
+  }[];
   reporter: {
     id: number;
     username: string;
@@ -28,6 +33,7 @@ export interface KanbanColumn {
   id: string;
   name: string;
   status: string;
+  color?: string;
   tasks: KanbanTask[];
   count: number;
 }

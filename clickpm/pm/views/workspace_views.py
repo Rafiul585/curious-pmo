@@ -103,6 +103,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         workspace = self.get_object()
         user_id = request.data.get('user_id')
         is_admin = request.data.get('is_admin', False)
+        is_guest = request.data.get('is_guest', False)
 
         if not user_id:
             return Response(
@@ -122,13 +123,14 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         member, created = WorkspaceMember.objects.get_or_create(
             workspace=workspace,
             user=user,
-            defaults={'is_admin': is_admin}
+            defaults={'is_admin': is_admin, 'is_guest': is_guest}
         )
 
         if not created:
             # Capture old state and update existing member
             old_state = AuditService.capture_state(member)
             member.is_admin = is_admin
+            member.is_guest = is_guest
             member.save()
             
             # Log role change
@@ -211,6 +213,24 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         serializer = WorkspaceSerializer(workspaces, many=True, context={'request': request})
         return Response(serializer.data)
 
+    @action(detail=False, methods=['GET'])
+    def my_memberships(self, request):
+        """
+        GET /api/workspaces/my_memberships/
+        Returns the current user's WorkspaceMember records (with is_guest flag).
+        Used by the frontend to determine if the user is a guest in any workspace.
+        """
+        memberships = WorkspaceMember.objects.filter(user=request.user).select_related('workspace')
+        return Response([
+            {
+                'workspace_id': m.workspace_id,
+                'workspace_name': m.workspace.name,
+                'is_admin': m.is_admin,
+                'is_guest': m.is_guest,
+            }
+            for m in memberships
+        ])
+
     @action(detail=True, methods=['GET'])
     def workspace_projects(self, request, pk=None):
         """
@@ -232,6 +252,16 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         serializer = ProjectSerializer(projects, many=True, context={'request': request})
         return Response(serializer.data)
 
+    def retrieve(self, request, *args, **kwargs):
+        """Return basic workspace info (no member list) for guest users."""
+        instance = self.get_object()
+        member_record = WorkspaceMember.objects.filter(workspace=instance, user=request.user).first()
+        if member_record and member_record.is_guest and not request.user.is_superuser:
+            serializer = WorkspaceSerializer(instance, context={'request': request})
+        else:
+            serializer = WorkspaceDetailSerializer(instance, context={'request': request})
+        return Response(serializer.data)
+
     @action(detail=True, methods=['GET'])
     def members(self, request, pk=None):
         """
@@ -239,6 +269,12 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         GET /api/workspaces/{id}/members/
         """
         workspace = self.get_object()
+        member_record = WorkspaceMember.objects.filter(workspace=workspace, user=request.user).first()
+        if member_record and member_record.is_guest and not request.user.is_superuser:
+            return Response(
+                {'error': 'Guests cannot view workspace members.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         members = WorkspaceMember.objects.filter(workspace=workspace)
         serializer = WorkspaceMemberSerializer(members, many=True, context={'request': request})
         return Response(serializer.data)
@@ -421,3 +457,4 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             'total_logs': logs.count() if hasattr(logs, 'count') else len(logs),
             'activity_logs': serializer.data
         })
+

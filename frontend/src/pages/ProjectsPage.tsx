@@ -13,9 +13,6 @@ import {
   DialogContent,
   DialogTitle,
   Grid,
-  IconButton,
-  LinearProgress,
-  Menu,
   MenuItem,
   Paper,
   Skeleton,
@@ -26,7 +23,6 @@ import {
 } from '@mui/material';
 import {
   Add,
-  MoreVert,
   Folder,
   CalendarMonth,
   People,
@@ -34,6 +30,7 @@ import {
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useCreateProjectMutation, useListProjectsQuery, Project } from '../api/projectApi';
+import { useGetMyWorkspacesQuery } from '../api/workspaceApi';
 
 const statusColors: Record<string, 'default' | 'primary' | 'warning' | 'success' | 'error'> = {
   planning: 'default',
@@ -48,27 +45,36 @@ export const ProjectsPage = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { data: projects, isLoading, error } = useListProjectsQuery();
   const [createProject, { isLoading: creating }] = useCreateProjectMutation();
+  const { data: workspaces } = useGetMyWorkspacesQuery();
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<{
-    name: string;
-    description: string;
-    status: 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled';
-    visibility: 'public' | 'private';
-  }>({
+  const [form, setForm] = useState({
     name: '',
     description: '',
-    status: 'planning',
-    visibility: 'private',
+    workspace: '' as string | number,
+    visibility: 'private' as 'public' | 'private',
+    start_date: '',
+    end_date: '',
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleOpen = () => {
+    const firstWs = workspaces?.[0];
+    setForm({
+      name: '',
+      description: '',
+      workspace: firstWs?.id ?? '',
+      visibility: 'private',
+      start_date: '',
+      end_date: '',
+    });
+    setOpen(true);
+  };
+
+  const handleSubmit = async () => {
     try {
-      const result = await createProject(form).unwrap();
+      const result = await createProject(form as any).unwrap();
       enqueueSnackbar('Project created successfully', { variant: 'success' });
       setOpen(false);
-      setForm({ name: '', description: '', status: 'planning', visibility: 'private' });
       navigate(`/projects/${result.id}`);
     } catch {
       enqueueSnackbar('Failed to create project', { variant: 'error' });
@@ -81,7 +87,7 @@ export const ProjectsPage = () => {
         <Typography variant="h5" fontWeight={700}>
           Projects
         </Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)}>
+        <Button variant="contained" startIcon={<Add />} onClick={handleOpen}>
           New Project
         </Button>
       </Stack>
@@ -202,7 +208,7 @@ export const ProjectsPage = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Create your first project to get started
           </Typography>
-          <Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)}>
+          <Button variant="contained" startIcon={<Add />} onClick={handleOpen}>
             Create Project
           </Button>
         </Paper>
@@ -212,55 +218,70 @@ export const ProjectsPage = () => {
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Create New Project</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Workspace"
+              value={form.workspace}
+              onChange={(e) => setForm((p) => ({ ...p, workspace: e.target.value }))}
+              select
+              fullWidth
+              required
+            >
+              {(workspaces ?? []).map((ws) => (
+                <MenuItem key={ws.id} value={ws.id}>{ws.name}</MenuItem>
+              ))}
+            </TextField>
             <TextField
               label="Project Name"
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-              required
               fullWidth
-              placeholder="e.g., Website Redesign"
+              required
             />
             <TextField
               label="Description"
               value={form.description}
-              multiline
-              minRows={3}
               onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              multiline
+              rows={3}
               fullWidth
-              placeholder="What's this project about?"
             />
             <Stack direction="row" spacing={2}>
               <TextField
-                label="Status"
-                value={form.status}
-                onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as typeof form.status }))}
-                select
+                label="Start Date"
+                type="date"
+                value={form.start_date}
+                onChange={(e) => setForm((p) => ({ ...p, start_date: e.target.value }))}
                 fullWidth
-              >
-                <MenuItem value="planning">Planning</MenuItem>
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="on_hold">On Hold</MenuItem>
-              </TextField>
+                InputLabelProps={{ shrink: true }}
+              />
               <TextField
-                label="Visibility"
-                value={form.visibility}
-                onChange={(e) => setForm((p) => ({ ...p, visibility: e.target.value as typeof form.visibility }))}
-                select
+                label="End Date"
+                type="date"
+                value={form.end_date}
+                onChange={(e) => setForm((p) => ({ ...p, end_date: e.target.value }))}
                 fullWidth
-              >
-                <MenuItem value="private">Private</MenuItem>
-                <MenuItem value="public">Public</MenuItem>
-              </TextField>
+                InputLabelProps={{ shrink: true }}
+              />
             </Stack>
+            <TextField
+              label="Visibility"
+              value={form.visibility}
+              onChange={(e) => setForm((p) => ({ ...p, visibility: e.target.value as typeof form.visibility }))}
+              select
+              fullWidth
+            >
+              <MenuItem value="private">Private</MenuItem>
+              <MenuItem value="public">Public</MenuItem>
+            </TextField>
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
           <Button
             onClick={handleSubmit}
-            disabled={creating || !form.name.trim()}
             variant="contained"
+            disabled={!form.name.trim() || !form.workspace || creating}
           >
             {creating ? 'Creating...' : 'Create Project'}
           </Button>

@@ -1,7 +1,14 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from .user_models import User, Role
-from .workspace_models import Workspace
+from .workspace_models import Workspace, Tag
+
+HEALTH_STATUS_CHOICES = [
+    ('on_track', 'On Track'),
+    ('at_risk',  'At Risk'),
+    ('behind',   'Behind'),
+    ('critical', 'Critical'),
+]
 
 # Project model
 class Project(models.Model):
@@ -10,10 +17,11 @@ class Project(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=50, default='Not Started')
+    health_status = models.CharField(max_length=20, choices=HEALTH_STATUS_CHOICES, default='on_track', blank=True, null=True)
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name='projects')
     visibility = models.CharField(max_length=20, choices=[('public', 'Public'), ('private', 'Private')], default='private')
     members = models.ManyToManyField(User, through='ProjectMember', related_name='projects')
-    tags = models.CharField(max_length=200, blank=True, null=True)
+    tags = models.ManyToManyField(Tag, blank=True, related_name='projects')
     archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -39,6 +47,91 @@ class Project(models.Model):
         ordering = ['-created_at']
 
 
+# Custom task statuses per project
+class ProjectStatus(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='custom_statuses')
+    name = models.CharField(max_length=100)
+    color = models.CharField(max_length=7, default='#6B7280')
+    order = models.PositiveIntegerField(default=0)
+    is_done_state = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['order', 'id']
+        unique_together = ('project', 'name')
+
+    def __str__(self):
+        return f"{self.project.name} — {self.name}"
+
+
+# ─── Custom Fields ────────────────────────────────────────────────────────────
+
+class CustomFieldDefinition(models.Model):
+    FIELD_TYPES = [
+        ('text',     'Text'),
+        ('number',   'Number'),
+        ('date',     'Date'),
+        ('dropdown', 'Dropdown'),
+        ('checkbox', 'Checkbox'),
+        ('url',      'URL'),
+    ]
+    project    = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='custom_fields')
+    name       = models.CharField(max_length=100)
+    field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
+    options    = models.JSONField(default=list, blank=True)
+    required   = models.BooleanField(default=False)
+    order      = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        unique_together = ('project', 'name')
+
+    def __str__(self):
+        return f"{self.project.name} / {self.name} ({self.field_type})"
+
+
+class TaskCustomFieldValue(models.Model):
+    task  = models.ForeignKey('pm.Task', on_delete=models.CASCADE, related_name='custom_field_values')
+    field = models.ForeignKey(CustomFieldDefinition, on_delete=models.CASCADE, related_name='values')
+    value = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('task', 'field')
+
+    def __str__(self):
+        return f"Task {self.task_id} / {self.field.name} = {self.value}"
+
+
+# ─── Automation Rules ────────────────────────────────────────────────────────
+
+class AutomationRule(models.Model):
+    TRIGGER_CHOICES = [
+        ('status_change',    'Status Change'),
+        ('due_date_passed',  'Due Date Passed'),
+        ('task_created',     'Task Created'),
+        ('assignee_changed', 'Assignee Changed'),
+    ]
+    ACTION_CHOICES = [
+        ('send_notification', 'Send Notification'),
+        ('change_status',     'Change Status'),
+        ('change_priority',   'Change Priority'),
+        ('assign_to',         'Assign To'),
+    ]
+    project       = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='automations')
+    name          = models.CharField(max_length=200)
+    trigger       = models.CharField(max_length=50, choices=TRIGGER_CHOICES)
+    conditions    = models.JSONField(default=dict, blank=True)
+    action        = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    action_params = models.JSONField(default=dict, blank=True)
+    is_active     = models.BooleanField(default=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.project.name} — {self.name}"
+
+
 # Project membership
 class ProjectMember(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -61,6 +154,7 @@ class Milestone(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=50, default='Not Started')
+    health_status = models.CharField(max_length=20, choices=HEALTH_STATUS_CHOICES, default='on_track', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -93,6 +187,7 @@ class Sprint(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=50, default='Not Started')
+    health_status = models.CharField(max_length=20, choices=HEALTH_STATUS_CHOICES, default='on_track', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

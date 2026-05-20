@@ -1,6 +1,8 @@
 from django.db import models
+from django.db.models import Sum
 from .user_models import User
 from .project_models import Sprint
+from .workspace_models import Tag
 
 # ----------------------------
 # Task Model
@@ -19,14 +21,28 @@ class Task(models.Model):
         ('High', 'High'),
         ('Critical', 'Critical'),
     ]
-    
+
+    RECURRENCE_CHOICES = [
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('biweekly', 'Bi-Weekly'),
+        ('monthly', 'Monthly'),
+    ]
+
     sprint = models.ForeignKey(Sprint, on_delete=models.CASCADE, related_name='tasks')
-    
+    parent = models.ForeignKey(
+        'self', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='subtasks'
+    )
+
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True)
     
     assignee = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks_assigned'
+    )
+    assignees = models.ManyToManyField(
+        User, blank=True, related_name='assigned_tasks'
     )
     reporter = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks_reported'
@@ -38,11 +54,25 @@ class Task(models.Model):
     start_date = models.DateField(null=True, blank=True)
     due_date = models.DateField(null=True, blank=True)
 
+    estimated_hours = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    actual_hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+
+    tags = models.ManyToManyField(Tag, blank=True, related_name='tasks')
+    watchers = models.ManyToManyField(User, blank=True, related_name='watched_tasks')
+
+    recurrence = models.CharField(max_length=20, choices=RECURRENCE_CHOICES, blank=True, null=True)
+    recurrence_end = models.DateField(null=True, blank=True)
+    recurrence_parent = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='recurrences'
+    )
+
+    position = models.PositiveIntegerField(default=0, db_index=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ['position', '-created_at']
 
     def __str__(self):
         return self.title
@@ -64,6 +94,69 @@ class Task(models.Model):
         if old_status != 'Done' and self.status == 'Done':
             from pm.services.auto_completion import auto_complete_on_task_done
             auto_complete_on_task_done(self)
+
+# ----------------------------
+# Time Log Model
+# ----------------------------
+class TimeLog(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='time_logs')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='time_logs')
+    hours = models.DecimalField(max_digits=5, decimal_places=2)
+    date = models.DateField()
+    note = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Keep task.actual_hours in sync with sum of all logs
+        total = TimeLog.objects.filter(task=self.task).aggregate(
+            total=models.Sum('hours')
+        )['total'] or 0
+        Task.objects.filter(pk=self.task_id).update(actual_hours=total)
+
+    def delete(self, *args, **kwargs):
+        task_id = self.task_id
+        super().delete(*args, **kwargs)
+        total = TimeLog.objects.filter(task_id=task_id).aggregate(
+            total=models.Sum('hours')
+        )['total'] or 0
+        Task.objects.filter(pk=task_id).update(actual_hours=total)
+
+    def __str__(self):
+        return f"{self.user.username} logged {self.hours}h on {self.task.title}"
+
+
+# ----------------------------
+# Checklist Models
+# ----------------------------
+class Checklist(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='checklists')
+    title = models.CharField(max_length=200)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+
+    def __str__(self):
+        return f"{self.task.title} — {self.title}"
+
+
+class ChecklistItem(models.Model):
+    checklist = models.ForeignKey(Checklist, on_delete=models.CASCADE, related_name='items')
+    text = models.CharField(max_length=500)
+    is_checked = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return self.text
+
 
 # ----------------------------
 # Task Dependency Model

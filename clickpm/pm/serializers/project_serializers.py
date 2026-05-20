@@ -1,6 +1,15 @@
 from rest_framework import serializers
-from pm.models.project_models import Project, ProjectMember, Milestone, Sprint
+from pm.models.project_models import Project, ProjectMember, ProjectStatus, Milestone, Sprint
+from pm.models.workspace_models import Tag
 from pm.serializers.user_serializers import UserMinimalSerializer, RoleSerializer
+from pm.serializers.tag_serializers import TagSerializer
+
+
+class ProjectStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectStatus
+        fields = ['id', 'project', 'name', 'color', 'order', 'is_done_state']
+        read_only_fields = ['id']
 
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
@@ -14,12 +23,12 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
 
 class SprintSerializer(serializers.ModelSerializer):
     completion_percentage = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Sprint
         fields = [
             'id', 'milestone', 'name', 'description', 'start_date', 'end_date',
-            'status', 'completion_percentage', 
+            'status', 'health_status', 'completion_percentage',
             'created_at', 'updated_at'
         ]
     
@@ -35,7 +44,7 @@ class SprintDetailSerializer(serializers.ModelSerializer):
         model = Sprint
         fields = [
             'id', 'milestone', 'milestone_name', 'name', 'description', 'start_date', 'end_date',
-            'status', 'completion_percentage', 'created_at', 'updated_at'
+            'status', 'health_status', 'completion_percentage', 'created_at', 'updated_at'
         ]
 
     def get_completion_percentage(self, obj):
@@ -50,7 +59,7 @@ class MilestoneSerializer(serializers.ModelSerializer):
         model = Milestone
         fields = [
             'id', 'project', 'name', 'description', 'start_date', 'end_date',
-            'status', 'sprints', 'completion_percentage', 
+            'status', 'health_status', 'sprints', 'completion_percentage',
             'created_at', 'updated_at'
         ]
     
@@ -67,7 +76,7 @@ class MilestoneDetailSerializer(serializers.ModelSerializer):
         model = Milestone
         fields = [
             'id', 'project', 'project_name', 'name', 'description', 'start_date', 'end_date',
-            'status', 'sprints', 'completion_percentage', 'created_at', 'updated_at'
+            'status', 'health_status', 'sprints', 'completion_percentage', 'created_at', 'updated_at'
         ]
 
     def get_completion_percentage(self, obj):
@@ -79,15 +88,16 @@ class ProjectSerializer(serializers.ModelSerializer):
     milestones = MilestoneSerializer(many=True, read_only=True)
     workspace_name = serializers.CharField(source='workspace.name', read_only=True)
     completion_percentage = serializers.SerializerMethodField()
+    tags_details = TagSerializer(source='tags', many=True, read_only=True)
 
     class Meta:
         model = Project
         fields = [
             'id', 'name', 'description', 'start_date', 'end_date',
-            'status', 'workspace', 'workspace_name', 'members', 'milestones',
-            'tags', 'archived', 'completion_percentage', 'created_at', 'updated_at'
+            'status', 'health_status', 'workspace', 'workspace_name', 'members', 'milestones',
+            'tags', 'tags_details', 'archived', 'completion_percentage', 'created_at', 'updated_at'
         ]
-    
+
     def get_completion_percentage(self, obj):
         return round(obj.calculate_completion_percentage(), 2)
 
@@ -96,36 +106,57 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     members = ProjectMemberSerializer(source='projectmember_set', many=True, read_only=True)
     milestones = MilestoneDetailSerializer(many=True, read_only=True)
     workspace_name = serializers.CharField(source='workspace.name', read_only=True)
+    custom_statuses = ProjectStatusSerializer(many=True, read_only=True)
 
     class Meta:
         model = Project
         fields = [
             'id', 'name', 'description', 'start_date', 'end_date',
-            'status', 'workspace', 'workspace_name', 'members', 'milestones',
-            'tags', 'archived', 'created_at', 'updated_at'
+            'status', 'health_status', 'workspace', 'workspace_name', 'members', 'milestones',
+            'tags', 'archived', 'custom_statuses', 'created_at', 'updated_at'
         ]
 
 
 class ProjectCreateUpdateSerializer(serializers.ModelSerializer):
+    tags = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Tag.objects.all(),
+        required=False,
+    )
+
     class Meta:
         model = Project
         fields = [
             'id', 'name', 'description', 'start_date', 'end_date',
-            'status', 'workspace', 'tags', 'archived', 'visibility'
+            'status', 'health_status', 'workspace', 'tags', 'archived', 'visibility'
         ]
         read_only_fields = ['id']
+
+    def create(self, validated_data):
+        tags = validated_data.pop('tags', [])
+        project = super().create(validated_data)
+        if tags:
+            project.tags.set(tags)
+        return project
+
+    def update(self, instance, validated_data):
+        tags = validated_data.pop('tags', None)
+        project = super().update(instance, validated_data)
+        if tags is not None:
+            project.tags.set(tags)
+        return project
 
 
 class MilestoneCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Milestone
-        fields = ['id', 'project', 'name', 'description', 'start_date', 'end_date', 'status']
+        fields = ['id', 'project', 'name', 'description', 'start_date', 'end_date', 'status', 'health_status']
         read_only_fields = ['id']
 
 
 class SprintCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sprint
-        fields = ['id', 'milestone', 'name', 'description', 'start_date', 'end_date', 'status']
+        fields = ['id', 'milestone', 'name', 'description', 'start_date', 'end_date', 'status', 'health_status']
         read_only_fields = ['id']
 
